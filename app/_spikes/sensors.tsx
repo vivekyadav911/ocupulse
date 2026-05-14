@@ -1,4 +1,4 @@
-import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, ScrollView, StyleSheet, Text } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useGyroscope } from '../../hooks/useGyroscope';
