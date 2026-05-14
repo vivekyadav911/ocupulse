@@ -33,7 +33,8 @@ export default function BreathingScreen() {
       peaks.current.push(now);
     }
     prev.current = z;
-    setBpm(breathsPerMinuteFromPeaks(peaks.current, WINDOW_S));
+    const elapsedForRate = Math.max(now, 1e-6);
+    setBpm(breathsPerMinuteFromPeaks(peaks.current, elapsedForRate));
   }, [z, running]);
 
   const start = () => {

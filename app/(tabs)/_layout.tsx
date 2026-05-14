@@ -5,8 +5,9 @@ import { colors, spacing } from '../../theme/tokens';
 
 export default function TabsLayout() {
   const { level } = useBatteryLevel();
-  const warn = level < 0.2;
-  const critical = level < 0.1;
+  const known = level >= 0 && level <= 1;
+  const warn = known && level < 0.2;
+  const critical = known && level < 0.1;
 
   return (
     <View style={{ flex: 1 }}>
