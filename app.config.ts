@@ -36,6 +36,13 @@ export default (): ExpoConfig => ({
   plugins: [
     'expo-router',
     [
+      'expo-location',
+      {
+        locationWhenInUsePermission:
+          'STEMM Lab uses your location to place sound samples and show your suburb on the map.',
+      },
+    ],
+    [
       'expo-notifications',
       {
         color: '#FFB400',
