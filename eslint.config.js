@@ -17,6 +17,7 @@ module.exports = [
       'ios/',
       '.eslintrc.cjs',
       '.eslintrc.a11y.cjs',
+      'scripts/',
     ],
   },
 ];

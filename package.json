@@ -12,6 +12,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "test": "jest",
     "a11y": "node scripts/lint-a11y.cjs",
+    "secret-scan": "node scripts/secret-scan.cjs",
     "prepare": "husky || true"
   },
   "lint-staged": {

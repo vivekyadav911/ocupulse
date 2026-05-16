@@ -17,6 +17,11 @@ function readExtra() {
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 
+export function isFirebaseConfigured(): boolean {
+  const cfg = readExtra();
+  return Boolean(cfg.apiKey && cfg.projectId);
+}
+
 export function getFirebaseApp(): FirebaseApp | null {
   if (app) return app;
   const cfg = readExtra();
