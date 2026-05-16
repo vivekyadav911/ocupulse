@@ -6,6 +6,7 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { StatReadout } from '../../components/StatReadout';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
+import { useRecordingGate } from '../../hooks/useRecordingGate';
 import { magnitudeRms, wobbleScoreFromRms } from '../../lib/calc/wobble';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
@@ -19,6 +20,7 @@ export default function EarthquakeScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
   const styles = useThemedStyles(activityScreenStyles);
+  const { recordingDisabled } = useRecordingGate();
   const { magnitude } = useAccelerometer();
   const [phase, setPhase] = useState<'idle' | 'go' | 'done'>('idle');
   const [score, setScore] = useState(0);
@@ -111,7 +113,7 @@ export default function EarthquakeScreen() {
         <Button
           title={phase === 'go' ? 'Shaking…' : 'Vibrate & record 5 s'}
           onPress={start}
-          disabled={phase === 'go' || saving}
+          disabled={phase === 'go' || saving || recordingDisabled}
         />
         <Button
           title={saving ? 'Saving…' : 'Save result'}

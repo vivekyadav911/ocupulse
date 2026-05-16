@@ -2,9 +2,11 @@ import { CameraView } from 'expo-camera';
 import { Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { useCameraRecorder } from '../../hooks/useCameraRecorder';
+import { useRecordingGate } from '../../hooks/useRecordingGate';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function CameraSpike() {
+  const { recordingDisabled } = useRecordingGate();
   const cam = useCameraRecorder({ maxDurationSec: 10, frameSampleHz: 120 });
   const styles = useThemedStyles((t) => ({
     wrap: { flex: 1, padding: t.spacing.md },
@@ -41,7 +43,11 @@ export default function CameraSpike() {
       <Text style={styles.meta} numberOfLines={1}>
         Last clip: {cam.lastClipUri ?? '—'}
       </Text>
-      <Button title={cam.isRecording ? 'Stop (1s+ for 120 frames)' : 'Record'} onPress={toggle} />
+      <Button
+        title={cam.isRecording ? 'Stop (1s+ for 120 frames)' : 'Record'}
+        onPress={toggle}
+        disabled={recordingDisabled && !cam.isRecording}
+      />
       <Button
         title="Request permissions"
         variant="secondary"

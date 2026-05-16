@@ -7,6 +7,7 @@ import { Card } from '../../components/Card';
 import { StatReadout } from '../../components/StatReadout';
 import { useMicrophoneDb } from '../../hooks/useMicrophoneDb';
 import { useLocation } from '../../hooks/useLocation';
+import { useRecordingGate } from '../../hooks/useRecordingGate';
 import { markerColorForPeakDb } from '../../lib/sound/markerColor';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
@@ -19,6 +20,7 @@ export default function SoundScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
   const styles = useThemedStyles(activityScreenStyles);
+  const { recordingDisabled } = useRecordingGate();
   const { start: startMic, stop: stopMic, liveDb, peakDb, avgDb } = useMicrophoneDb();
   const { coords, address, refresh, loading: locating } = useLocation();
   const [running, setRunning] = useState(false);
@@ -104,7 +106,7 @@ export default function SoundScreen() {
         <Button
           title={saving ? 'Saving…' : running ? 'Recording 30 s…' : 'Record 30 s sample'}
           onPress={begin}
-          disabled={running || saving}
+          disabled={running || saving || recordingDisabled}
         />
         <Button
           title="Stop & save"
