@@ -1,6 +1,6 @@
 import { collection, doc, onSnapshot, setDoc, type Unsubscribe } from 'firebase/firestore';
 import { getFirestoreDb } from './firebase';
-import { deleteOutboxIds, getAllOutbox, getDb, insertOutbox } from './db/sqlite';
+import { deleteOutboxIds, getAllOutbox, insertOutbox, resultsDao } from './db/sqlite';
 
 export type LeaderRow = {
   id: string;
@@ -85,11 +85,14 @@ export async function writeSessionOptimistic(input: {
   payload: Record<string, unknown>;
 }): Promise<string> {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-  const database = await getDb();
-  await database.runAsync(
-    `INSERT OR REPLACE INTO experiment_results (id, session_id, activity_type, score, data_json, synced) VALUES (?, ?, ?, ?, ?, 0)`,
-    [id, id, input.activityType, input.score, JSON.stringify(input.payload)],
-  );
+  await resultsDao.insert({
+    id,
+    sessionId: id,
+    activityType: input.activityType,
+    score: input.score,
+    dataJson: JSON.stringify(input.payload),
+    synced: 0,
+  });
   const docPayload = {
     teamName: input.teamName,
     activityType: input.activityType,

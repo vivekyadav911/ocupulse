@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
-import { getDb, runMigrations } from '../../services/db/sqlite';
+import { runMigrations, teamsDao } from '../../services/db/sqlite';
 import { colors, spacing } from '../../theme/tokens';
 
 export default function SqliteSpike() {
@@ -10,9 +10,8 @@ export default function SqliteSpike() {
     void runMigrations();
   }, []);
   const test = async () => {
-    const db = await getDb();
-    await db.execAsync(`INSERT OR REPLACE INTO teams (id, name) VALUES ('t1','Alpha');`);
-    const r = await db.getAllAsync<{ id: string; name: string }>('SELECT * FROM teams LIMIT 5');
+    await teamsDao.insert({ id: 't1', name: 'Alpha' });
+    const r = await teamsDao.findAll();
     setRows(JSON.stringify(r));
   };
   return (
