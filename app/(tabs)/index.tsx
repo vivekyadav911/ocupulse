@@ -1,10 +1,10 @@
 import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 import { StemmBannerAd } from '../../components/StemmBannerAd';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { useSessionStore } from '../../store/sessionStore';
-import { colors, spacing } from '../../theme/tokens';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 const ACTIVITIES: { path: string; title: string }[] = [
   { path: '/activity/parachute', title: 'Parachute Drop' },
@@ -19,6 +19,21 @@ const ACTIVITIES: { path: string; title: string }[] = [
 export default function HomeScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
+  const styles = useThemedStyles((t) => ({
+    wrap: {
+      padding: t.spacing.md,
+      backgroundColor: t.colors.surfaceAlt,
+      paddingBottom: t.spacing.xl,
+    },
+    h1: { fontSize: 28, fontWeight: '800', color: t.colors.text },
+    sub: { color: t.colors.muted, marginBottom: t.spacing.md },
+    cardTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      marginBottom: t.spacing.sm,
+      color: t.colors.text,
+    },
+  }));
 
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
@@ -45,10 +60,3 @@ export default function HomeScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { padding: spacing.md, backgroundColor: colors.surfaceAlt, paddingBottom: spacing.xl },
-  h1: { fontSize: 28, fontWeight: '800', color: colors.primary },
-  sub: { color: colors.muted, marginBottom: spacing.md },
-  cardTitle: { fontSize: 18, fontWeight: '700', marginBottom: spacing.sm, color: colors.text },
-});

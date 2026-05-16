@@ -1,17 +1,19 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { StatReadout } from '../../components/StatReadout';
 import { averageReactionMs, traceScoreFromMse } from '../../lib/calc/reactionStats';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
-import { colors, spacing } from '../../theme/tokens';
+import { activityScreenStyles } from '../../theme/activityScreenStyles';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function ReactionScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
+  const styles = useThemedStyles(activityScreenStyles);
   const [step, setStep] = useState<'react' | 'trace'>('react');
   const [times, setTimes] = useState<number[]>([]);
   const [armed, setArmed] = useState(false);
@@ -99,19 +101,3 @@ export default function ReactionScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: spacing.md, color: colors.primary },
-  instr: { fontSize: 16, marginVertical: spacing.md, fontWeight: '600', color: colors.accent },
-  trace: {
-    height: 140,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: spacing.md,
-  },
-  traceHelp: { color: colors.muted },
-});

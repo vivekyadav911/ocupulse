@@ -4,11 +4,32 @@ import MapView, { Marker } from 'react-native-maps';
 import { Button } from '../../components/Button';
 import { StatReadout } from '../../components/StatReadout';
 import { useLocation } from '../../hooks/useLocation';
-import { colors, spacing } from '../../theme/tokens';
+import { useAppTheme } from '../../theme/useAppTheme';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 const REGION_DELTA = 0.012;
 
 export default function MapsSpike() {
+  const { colors } = useAppTheme();
+  const styles = useThemedStyles((t) => ({
+    wrap: { flex: 1, padding: t.spacing.md },
+    h1: { fontSize: 20, fontWeight: '800', marginBottom: t.spacing.sm, color: t.colors.primary },
+    addr: { marginBottom: t.spacing.sm, color: t.colors.muted, fontSize: 14 },
+    chart: { borderRadius: 12 },
+    map: { flex: 1, marginTop: t.spacing.md, borderRadius: 12 },
+    mapPlaceholder: {
+      flex: 1,
+      marginTop: t.spacing.md,
+      borderRadius: 12,
+      backgroundColor: t.colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: t.spacing.md,
+    },
+    placeholderText: { color: t.colors.muted, textAlign: 'center' as const },
+    spinner: { marginVertical: t.spacing.md },
+    err: { marginTop: t.spacing.sm, color: t.colors.danger },
+  }));
   const { coords, suburb, address, error, loading, refresh } = useLocation();
 
   useEffect(() => {
@@ -57,21 +78,3 @@ export default function MapsSpike() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  h1: { fontSize: 20, fontWeight: '800', marginBottom: spacing.sm, color: colors.primary },
-  addr: { marginBottom: spacing.sm, color: colors.muted, fontSize: 14 },
-  spinner: { marginVertical: spacing.md },
-  map: { flex: 1, marginTop: spacing.md, borderRadius: 12 },
-  mapPlaceholder: {
-    flex: 1,
-    marginTop: spacing.md,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.md,
-  },
-  placeholderText: { color: colors.muted, textAlign: 'center' },
-});

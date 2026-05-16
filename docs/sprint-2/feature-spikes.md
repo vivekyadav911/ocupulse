@@ -176,10 +176,14 @@ The **outbox** table queues not-yet-synced Firestore writes (`path` + JSON `payl
 - **Code:** Expo Router — [`app/_layout.tsx`](../../app/_layout.tsx), [`app/(tabs)/`](../../app/(tabs)/), [`app/activity/`](../../app/activity/), [`app/results/[sessionId].tsx`](../../app/results/[sessionId].tsx)
 - **Docs:** [`screen-flow.md`](./screen-flow.md), design tokens [`design-tokens.md`](./design-tokens.md) → [`theme/tokens.ts`](../../theme/tokens.ts)
 
-## Shared UI components
+## Shared UI components (theme + Zustand)
 
-- **Spike:** [`app/_spikes/components.tsx`](../../app/_spikes/components.tsx)
-- **Code:** [`components/Button.tsx`](../../components/Button.tsx), [`components/Card.tsx`](../../components/Card.tsx), [`components/StatReadout.tsx`](../../components/StatReadout.tsx)
+- **Spike:** [`app/_spikes/components.tsx`](../../app/_spikes/components.tsx) — primary / secondary / danger buttons + `StatReadout`
+- **Tokens:** [`theme/tokens.ts`](../../theme/tokens.ts) — colors, spacing, radii, typography (light + dark)
+- **Theme store:** [`store/themeStore.ts`](../../store/themeStore.ts) — persisted light/dark toggle (`stemm-theme` in AsyncStorage)
+- **Session store:** [`store/sessionStore.ts`](../../store/sessionStore.ts) — team, activity, session id, grade gate
+- **Docs:** [`components.md`](./components.md), [`design-tokens.md`](./design-tokens.md)
+- **Settings toggle:** [`app/(tabs)/settings.tsx`](../../app/(tabs)/settings.tsx)
 
 ---
 
