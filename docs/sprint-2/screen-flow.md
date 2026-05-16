@@ -16,7 +16,7 @@ STEMM Lab navigation derived from Assessment 1 user flow. Each row has a **wiref
 | 8 | `earthquake.png` | Earthquake Structure | `app/activity/earthquake.tsx` | Vibration + haptics |
 | 9 | `humanperf.png` | Human Performance Lab | `app/activity/humanperf.tsx` | Gyro smoothness |
 | 10 | `reaction.png` | Reaction Board | `app/activity/reaction.tsx` | Reaction + trace |
-| 11 | `breathing.png` | Breathing Pace Trainer | `app/activity/breathing.tsx` | Planned — chest Z accel (Sprint 3) |
+| 11 | `breathing.png` | Breathing Pace Trainer | `app/activity/breathing.tsx` | Chest Z accel stub (Sprint 3 polish) |
 | 12 | `results.png` | Session results | `app/results/[sessionId].tsx` | Score + sync status |
 | 13 | `leaderboard.png` | Leaderboard | `app/(tabs)/leaderboard.tsx` | Live Firestore ranks |
 | 14 | `settings.png` | Settings | `app/(tabs)/settings.tsx` | Theme, grade, sign out |
