@@ -36,6 +36,7 @@ export default function RegisterScreen() {
           placeholder="Email"
           style={styles.input}
           accessibilityLabel="Registration email"
+          accessibilityHint="Enter the email for your teacher account"
         />
         <TextInput
           value={password}
@@ -44,6 +45,7 @@ export default function RegisterScreen() {
           placeholder="Password (min 6 chars)"
           style={styles.input}
           accessibilityLabel="Registration password"
+          accessibilityHint="Choose a password with at least six characters"
         />
         <Button title="Create account" onPress={go} disabled={busy} />
         <Button

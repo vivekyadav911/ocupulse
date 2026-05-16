@@ -7,5 +7,16 @@ module.exports = [
     plugins: { prettier: prettierPlugin },
     rules: { 'prettier/prettier': 'warn' },
   },
-  { ignores: ['node_modules/', '.expo/', 'dist/', 'coverage/', 'android/', 'ios/'] },
+  {
+    ignores: [
+      'node_modules/',
+      '.expo/',
+      'dist/',
+      'coverage/',
+      'android/',
+      'ios/',
+      '.eslintrc.cjs',
+      '.eslintrc.a11y.cjs',
+    ],
+  },
 ];

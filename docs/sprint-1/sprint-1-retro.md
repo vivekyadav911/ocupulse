@@ -26,4 +26,5 @@
 **Vivek Yadav** — 15 May 2026  
 Completing Sprint 1 documentation import and board linkage; next focus: Sprint 2 navigation shell + sensor spikes per plan.
 
-**Teammate** — `<!-- TODO: add your dated paragraph + signature before Sprint 1 tag sprint-1-end -->`
+**Vineet Yadav** — 16 May 2026  
+Sprint 1: Azure board hygiene, design artefact import (Lean Canvas, ERD, capability matrix), and Expo bootstrap verification on Android emulator; Sprint 2 focus: navigation shell and component spikes.

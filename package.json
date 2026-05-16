@@ -11,7 +11,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "test": "jest",
-    "a11y": "eslint \"app/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" --no-eslintrc -c .eslintrc.a11y.cjs",
+    "a11y": "node scripts/lint-a11y.cjs",
     "prepare": "husky || true"
   },
   "lint-staged": {

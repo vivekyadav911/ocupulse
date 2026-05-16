@@ -17,6 +17,7 @@ export type ButtonProps = Omit<PressableProps, 'style'> & {
   variant?: Variant;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  accessibilityHint?: string;
 };
 
 function variantColors(variant: Variant, colors: ThemeColors) {
@@ -40,6 +41,7 @@ export function Button({
   style,
   textStyle,
   accessibilityLabel,
+  accessibilityHint,
   ...rest
 }: ButtonProps) {
   const { colors, spacing, radii, typography } = useAppTheme();
@@ -64,12 +66,14 @@ export function Button({
   );
 
   const label = accessibilityLabel ?? title;
+  const hint = accessibilityHint ?? `Activates ${title}`;
   const palette = variantColors(variant, colors);
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={hint}
       style={({ pressed }) => [
         styles.base,
         {
