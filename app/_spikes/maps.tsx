@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { Button } from '../../components/Button';
 import { StatReadout } from '../../components/StatReadout';

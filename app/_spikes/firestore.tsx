@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
-import { writeSessionOptimistic } from '../../services/firestore';
-import { subscribeLeaderboard } from '../../services/firestore';
-import type { LeaderRow } from '../../services/firestore';
+import {
+  subscribeLeaderboard,
+  writeSessionOptimistic,
+  type LeaderRow,
+} from '../../services/firestore';
 import { colors, spacing } from '../../theme/tokens';
 
 export default function FirestoreSpike() {
