@@ -11,7 +11,7 @@ Migrations run via `runMigrations()` (call once at app start, e.g. root layout):
 
 | File | Purpose |
 |------|---------|
-| `migrations/001_schema.sql` | Tables: `teams`, `students`, `sessions`, `experiment_results`, `outbox`, `schema_migrations` |
+| `migrations/001_init.sql` | Tables: `teams`, `students`, `sessions`, `experiment_results`, `outbox`, `schema_migrations` |
 | `migrations/002_indexes.sql` | Indexes on foreign keys, activity type, sync flag, outbox time |
 
 Each DAO is typed and exposes **`insert`**, **`update`**, **`findById`**, **`findAll`**:
