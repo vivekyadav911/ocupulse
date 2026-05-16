@@ -31,10 +31,19 @@ Consolidated cross-check of **Assessment 4** capabilities ([capability matrix](.
 
 ## Sensors (accelerometer, gyroscope)
 
-- **Spike:** [`app/_spikes/sensors.tsx`](../../app/_spikes/sensors.tsx)
-- **Code:** [`hooks/useAccelerometer.ts`](../../hooks/useAccelerometer.ts), [`hooks/useGyroscope.ts`](../../hooks/useGyroscope.ts), [`hooks/useMotionSensor.ts`](../../hooks/useMotionSensor.ts)
-- **Activities:** [`app/activity/parachute.tsx`](../../app/activity/parachute.tsx), [`app/activity/earthquake.tsx`](../../app/activity/earthquake.tsx), [`app/activity/humanperf.tsx`](../../app/activity/humanperf.tsx), [`app/activity/breathing.tsx`](../../app/activity/breathing.tsx)
-- **Notes:** Sprint 3 hardening adds 5 s ring buffer + Hz reporting (see [`docs/sprint-3/hooks-motion.md`](../sprint-3/hooks-motion.md)).
+- **Spike:** [`app/_spikes/sensors.tsx`](../../app/_spikes/sensors.tsx) — live `LineChart` of **accelerometer magnitude** (≥30 fps repaint; sensor at 60 Hz)
+- **Hooks:** [`hooks/useAccelerometer.ts`](../../hooks/useAccelerometer.ts), [`hooks/useGyroscope.ts`](../../hooks/useGyroscope.ts) (`expo-sensors`, default `1000/60` ms interval)
+  - Each exposes `{ x, y, z, magnitude }` plus ring-buffer fields from Sprint 3 (`series`, `stats`, `hz`)
+  - Listeners removed on unmount (`sub.remove()` + dev `console.count` leak check)
+- **Activities:** parachute, earthquake, humanperf, breathing — see [`docs/sprint-3/hooks-motion.md`](../sprint-3/hooks-motion.md)
+
+### Screenshot
+
+Capture on a **real device**: open `/_spikes/sensors`, walk or shake the phone, save as `docs/sprint-2/wireframes/sensors-spike.png`.
+
+![Sensors spike — live accelerometer magnitude chart](./wireframes/sensors-spike.svg)
+
+_(Replace with a device PNG at `./wireframes/sensors-spike.png` when captured.)_
 
 ## Camera / torch
 

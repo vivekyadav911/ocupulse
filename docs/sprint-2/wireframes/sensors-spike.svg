@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <rect width="640" height="360" fill="#f4f6f8"/>
+  <text x="24" y="36" font-family="Segoe UI, sans-serif" font-size="20" font-weight="700" fill="#0B1F3A">
+    Sensors spike  live accel magnitude
+  </text>
+  <text x="24" y="62" font-family="Segoe UI, sans-serif" font-size="13" fill="#5c6b7a">
+    Walk / shake device; chart updates e30 fps (US12)
+  </text>
+  <rect x="24" y="80" width="592" height="220" rx="12" fill="#ffffff" stroke="#d0d7de"/>
+  <polyline
+    fill="none"
+    stroke="#0B1F3A"
+    stroke-width="3"
+    points="40,260 90,220 140,240 190,180 240,200 290,150 340,170 390,120 440,140 490,100 540,130 590,90"
+  />
+  <text x="24" y="330" font-family="Segoe UI, sans-serif" font-size="12" fill="#5c6b7a">
+    Replace with device capture: docs/sprint-2/wireframes/sensors-spike.png
+  </text>
+</svg>
