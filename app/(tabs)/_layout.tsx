@@ -1,12 +1,18 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useBatteryLevel } from '../../hooks/useBattery';
-import { colors, spacing } from '../../theme/tokens';
+import { useAppTheme } from '../../theme/useAppTheme';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function TabsLayout() {
+  const { colors } = useAppTheme();
   const { level } = useBatteryLevel();
   const warn = level < 0.2;
   const critical = level < 0.1;
+  const styles = useThemedStyles((t) => ({
+    banner: { padding: t.spacing.sm },
+    bannerText: { fontWeight: '700', textAlign: 'center' as const },
+  }));
 
   return (
     <View style={{ flex: 1 }}>
@@ -36,8 +42,3 @@ export default function TabsLayout() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  banner: { padding: spacing.sm },
-  bannerText: { fontWeight: '700', textAlign: 'center' },
-});

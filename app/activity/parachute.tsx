@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { StatReadout } from '../../components/StatReadout';
@@ -8,7 +8,8 @@ import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { gForceNoBounce } from '../../lib/calc/gforce';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
-import { colors, spacing } from '../../theme/tokens';
+import { activityScreenStyles } from '../../theme/activityScreenStyles';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function ParachuteScreen() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function ParachuteScreen() {
   const team = useSessionStore((s) => s.teamName);
   const [impact, setImpact] = useState('2.0');
   const [contact, setContact] = useState('0.05');
+  const styles = useThemedStyles(activityScreenStyles);
 
   const g = gForceNoBounce(parseFloat(impact) || 0, parseFloat(contact) || 0.05);
 
@@ -60,16 +62,3 @@ export default function ParachuteScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: spacing.md, color: colors.primary },
-  label: { fontWeight: '600', marginTop: spacing.sm, color: colors.text },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.muted,
-    borderRadius: 8,
-    padding: spacing.sm,
-    marginTop: spacing.xs,
-  },
-});

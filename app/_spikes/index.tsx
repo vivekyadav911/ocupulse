@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
-import { colors, spacing } from '../../theme/tokens';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 const SPIKES = [
   'sensors',
@@ -17,6 +17,11 @@ const SPIKES = [
 
 export default function SpikesIndex() {
   const router = useRouter();
+  const styles = useThemedStyles((t) => ({
+    wrap: { flex: 1, padding: t.spacing.md },
+    h1: { fontSize: 22, fontWeight: '800', marginBottom: t.spacing.md, color: t.colors.text },
+  }));
+
   return (
     <View style={styles.wrap}>
       <Text style={styles.h1}>Sprint 2 capability spikes</Text>
@@ -33,8 +38,3 @@ export default function SpikesIndex() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  h1: { fontSize: 22, fontWeight: '800', marginBottom: spacing.md, color: colors.primary },
-});

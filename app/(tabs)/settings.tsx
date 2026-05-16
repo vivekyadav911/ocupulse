@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { signOutUser } from '../../services/auth';
 import { useSessionStore, type GradeLevel } from '../../store/sessionStore';
 import { useThemeStore } from '../../store/themeStore';
-import { colors, spacing } from '../../theme/tokens';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 const GRADES: GradeLevel[] = ['Year 4', 'Year 6', 'Year 9', 'High School'];
 
@@ -13,6 +13,12 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { mode, toggle } = useThemeStore();
   const { teamName, gradeLevel, setTeam } = useSessionStore();
+  const styles = useThemedStyles((t) => ({
+    wrap: { flex: 1, padding: t.spacing.md },
+    h1: { fontSize: 22, fontWeight: '800', marginBottom: t.spacing.md, color: t.colors.text },
+    label: { marginTop: t.spacing.md, fontWeight: '700', color: t.colors.text },
+    now: { color: t.colors.muted, marginBottom: t.spacing.sm },
+  }));
 
   const pickGrade = (g: GradeLevel) => {
     setTeam({ gradeLevel: g });
@@ -45,10 +51,3 @@ export default function SettingsScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  h1: { fontSize: 22, fontWeight: '800', marginBottom: spacing.md, color: colors.primary },
-  label: { marginTop: spacing.md, fontWeight: '700', color: colors.text },
-  now: { color: colors.muted, marginBottom: spacing.sm },
-});
