@@ -36,6 +36,15 @@ export default (): ExpoConfig => ({
   plugins: [
     'expo-router',
     [
+      'expo-camera',
+      {
+        cameraPermission:
+          'STEMM Lab uses the camera for parachute slow-motion and hand-fan tracking experiments.',
+        microphonePermission: 'STEMM Lab records audio with video clips during camera experiments.',
+        recordAudioAndroid: true,
+      },
+    ],
+    [
       'expo-location',
       {
         locationWhenInUsePermission:
