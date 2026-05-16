@@ -50,11 +50,15 @@ Consolidated cross-check of **Assessment 4** capabilities ([capability matrix](.
 - **Activity:** [`app/activity/sound.tsx`](../../app/activity/sound.tsx)
 - **Docs:** [`docs/sprint-3/hooks-microphone.md`](../sprint-3/hooks-microphone.md)
 
-## Maps & GPS
+## GPS + Maps
 
-- **Spike:** [`app/_spikes/maps.tsx`](../../app/_spikes/maps.tsx)
-- **Code:** [`hooks/useLocation.ts`](../../hooks/useLocation.ts), [`app/results/sound-map.tsx`](../../app/results/sound-map.tsx)
-- **Activity:** [`app/activity/sound.tsx`](../../app/activity/sound.tsx)
+- **Spike:** [`app/_spikes/maps.tsx`](../../app/_spikes/maps.tsx) — `MapView` + marker at device GPS; **suburb** label from reverse geocode
+- **Hook:** [`hooks/useLocation.ts`](../../hooks/useLocation.ts)
+  - `requestForegroundPermissionsAsync` → `getCurrentPositionAsync` → `reverseGeocodeAsync`
+  - Returns `{ coords, suburb, address, error, loading, refresh }`
+  - Suburb resolution: `district` → `subregion` → `city` (see `suburbFromGeocode`)
+- **Production:** [`app/activity/sound.tsx`](../../app/activity/sound.tsx), [`app/results/sound-map.tsx`](../../app/results/sound-map.tsx)
+- **Validate on a real phone** (Expo Go or dev client) — simulators often return stale or missing geocode fields
 
 ## Battery
 
