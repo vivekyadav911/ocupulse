@@ -1,7 +1,7 @@
 /** SQL migrations — keep in sync with matching `.sql` files in this folder. */
 export const MIGRATIONS: { version: string; sql: string }[] = [
   {
-    version: '001_schema',
+    version: '001_init',
     sql: `
 PRAGMA journal_mode = WAL;
 

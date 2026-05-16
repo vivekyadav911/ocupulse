@@ -36,10 +36,25 @@ async function isMigrationApplied(
   }
 }
 
+/** Legacy Sprint 2 migration id before rename to `001_init`. */
+const LEGACY_INIT_VERSION = '001_schema';
+
 export async function runMigrations(): Promise<void> {
   const database = await getDb();
   for (const migration of MIGRATIONS) {
     if (await isMigrationApplied(database, migration.version)) continue;
+
+    if (
+      migration.version === '001_init' &&
+      (await isMigrationApplied(database, LEGACY_INIT_VERSION))
+    ) {
+      await database.runAsync('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)', [
+        '001_init',
+        Date.now(),
+      ]);
+      continue;
+    }
+
     await database.execAsync(migration.sql);
     await database.runAsync('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)', [
       migration.version,
