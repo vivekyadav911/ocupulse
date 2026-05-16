@@ -13,7 +13,7 @@ const ACTIVITIES: { path: string; title: string }[] = [
   { path: '/activity/earthquake', title: 'Earthquake Structure' },
   { path: '/activity/humanperf', title: 'Human Performance Lab' },
   { path: '/activity/reaction', title: 'Reaction Board' },
-  { path: '/activity/breathing', title: 'Breathing Pace' },
+  { path: '/activity/breathing', title: 'Breathing Pace Trainer' },
 ];
 
 export default function HomeScreen() {
