@@ -12,8 +12,9 @@ import { colors, spacing } from '../../theme/tokens';
 export default function HumanPerfScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
-  const { series } = useGyroscope();
-  const score = smoothnessScore(series);
+  const { series, hz } = useGyroscope();
+  const dt = hz > 0 ? 1 / hz : 1 / 60;
+  const score = smoothnessScore(series, dt);
 
   const save = async () => {
     const sessionId = await writeSessionOptimistic({
