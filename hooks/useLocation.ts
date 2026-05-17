@@ -9,6 +9,12 @@ export function suburbFromGeocode(place: Location.LocationGeocodedAddress | unde
   return place.district || place.subregion || place.city || place.name || place.region || '';
 }
 
+export type LocationSnapshot = {
+  coords: LocationCoords;
+  suburb: string;
+  address: string;
+};
+
 export function useLocation() {
   const [coords, setCoords] = useState<LocationCoords | null>(null);
   const [suburb, setSuburb] = useState('');
@@ -16,7 +22,7 @@ export function useLocation() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<LocationSnapshot | null> => {
     setLoading(true);
     setError(null);
     try {
@@ -24,7 +30,7 @@ export function useLocation() {
       if (status !== 'granted') {
         setError('Location permission denied');
         setCoords(null);
-        return;
+        return null;
       }
 
       const pos = await Location.getCurrentPositionAsync({
@@ -32,20 +38,22 @@ export function useLocation() {
       });
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      setCoords({ lat, lng });
+      const nextCoords = { lat, lng };
+      setCoords(nextCoords);
 
       const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
       const g = geo[0];
       const suburbLabel = suburbFromGeocode(g);
+      const nextAddress = g
+        ? [suburbLabel, g.region, g.country].filter(Boolean).join(', ') ||
+          `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+        : `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
       setSuburb(suburbLabel);
-      setAddress(
-        g
-          ? [suburbLabel, g.region, g.country].filter(Boolean).join(', ') ||
-              `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-          : `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-      );
+      setAddress(nextAddress);
+      return { coords: nextCoords, suburb: suburbLabel, address: nextAddress };
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return null;
     } finally {
       setLoading(false);
     }
