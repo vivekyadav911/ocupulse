@@ -1,8 +1,8 @@
 module.exports = function (api) {
   api.cache(true);
-  const isTest = process.env.NODE_ENV === 'test';
+  // babel-preset-expo already adds react-native-reanimated/plugin last when the package is installed.
+  // A second copy here can break plugin order and leave expo-router transforms incomplete.
   return {
     presets: ['babel-preset-expo'],
-    plugins: isTest ? [] : ['react-native-reanimated/plugin'],
   };
 };
