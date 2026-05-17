@@ -14,6 +14,7 @@ import {
   traceScoreFromMse,
   type Point2,
 } from '../../lib/calc/reactionStats';
+import { useRecordingGate } from '../../hooks/useRecordingGate';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
@@ -25,6 +26,7 @@ const REACTION_ROUNDS = 5;
 export default function ReactionScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
+  const { recordingDisabled } = useRecordingGate();
   const { colors } = useAppTheme();
   const styles = useThemedStyles(activityScreenStyles);
 
@@ -144,7 +146,7 @@ export default function ReactionScreen() {
             <Button
               title="Start reaction rounds"
               onPress={startReact}
-              disabled={waiting || armed}
+              disabled={waiting || armed || recordingDisabled}
             />
             <Button title="Tap!" onPress={registerTap} disabled={!armed} />
           </>

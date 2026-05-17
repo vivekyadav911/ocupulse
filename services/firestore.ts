@@ -13,8 +13,10 @@ export type LeaderRow = {
   avgDb?: number;
 };
 
+export type LeaderboardFilter = string | 'all';
+
 export function subscribeLeaderboard(
-  activityType: string,
+  activityType: LeaderboardFilter,
   onRows: (rows: LeaderRow[]) => void,
 ): Unsubscribe {
   const db = getFirestoreDb();
@@ -40,7 +42,7 @@ export function subscribeLeaderboard(
             avgDb: x.avgDb != null ? Number(x.avgDb) : undefined,
           };
         })
-        .filter((r) => r.activityType === activityType)
+        .filter((r) => activityType === 'all' || r.activityType === activityType)
         .sort((a, b) => b.score - a.score)
         .slice(0, 50);
       onRows(rows);

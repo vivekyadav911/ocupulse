@@ -57,6 +57,8 @@ export default (): ExpoConfig => ({
         color: '#FFB400',
       },
     ],
+    'expo-background-fetch',
+    'expo-task-manager',
   ],
   extra: {
     router: { origin: false },
