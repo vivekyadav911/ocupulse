@@ -24,6 +24,7 @@ Place `google-services.json` and `GoogleService-Info.plist` at the **repo root**
 
 - `npm start` — Expo dev server  
 - `npm run lint` — ESLint  
+- `npm run secret-scan` — block committed API keys / AdMob units  
 - `npm test` — Jest  
 - `npm run android` / `npm run ios`
 
