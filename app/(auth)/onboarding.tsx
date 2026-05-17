@@ -12,7 +12,8 @@ export default function OnboardingScreen() {
         <Text style={styles.h1}>Welcome to STEMM Lab</Text>
         <Text style={styles.p}>
           Complete experiments with your team, capture sensor and video data, and climb school-safe
-          leaderboards. Tap Quick join for a frictionless classroom session.
+          leaderboards. Use Quick join on the login screen to try the app without signing in (local
+          testing only; Firebase auth can be enabled later for teachers).
         </Text>
         <Button title="Continue to login" onPress={() => router.replace('/(auth)/login')} />
       </Card>

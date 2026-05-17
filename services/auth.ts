@@ -3,7 +3,6 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
-  signInAnonymously,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
 } from 'firebase/auth';
@@ -25,11 +24,6 @@ export function onAuthChange(cb: (u: User | null) => void) {
   }
 }
 
-export async function signInAnon() {
-  const auth = getAuthInstance();
-  return signInAnonymously(auth);
-}
-
 export async function signInEmail(email: string, password: string) {
   const auth = getAuthInstance();
   return signInWithEmailAndPassword(auth, email.trim(), password);
@@ -40,7 +34,14 @@ export async function registerEmail(email: string, password: string) {
   return createUserWithEmailAndPassword(auth, email.trim(), password);
 }
 
+/** Signs out Firebase when configured; no-op if Firebase is missing or user was only on Quick join. */
 export async function signOutUser() {
-  const auth = getAuthInstance();
-  await fbSignOut(auth);
+  const app = getFirebaseApp();
+  if (!app) return;
+  try {
+    const auth = getAuth(app);
+    await fbSignOut(auth);
+  } catch {
+    // ignore
+  }
 }

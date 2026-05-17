@@ -3,12 +3,14 @@ import { useState } from 'react';
 import { Alert, Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
-import { signInAnon, signInEmail } from '../../services/auth';
+import { signInEmail } from '../../services/auth';
+import { useAuthStore } from '../../store/authStore';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const setQuickJoin = useAuthStore((s) => s.setQuickJoinActive);
   const { colors } = useAppTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,21 +40,15 @@ export default function LoginScreen() {
     },
   }));
 
-  const quickJoin = async () => {
-    setBusy(true);
-    try {
-      await signInAnon();
-      router.replace('/(tabs)');
-    } catch (e) {
-      Alert.alert('Login', e instanceof Error ? e.message : 'Anonymous sign-in failed');
-    } finally {
-      setBusy(false);
-    }
+  const quickJoin = () => {
+    setQuickJoin(true);
+    router.replace('/(tabs)');
   };
 
   const teacherLogin = async () => {
     setBusy(true);
     try {
+      useAuthStore.getState().setQuickJoinActive(false);
       await signInEmail(email, password);
       router.replace('/(tabs)');
     } catch (e) {
@@ -66,8 +62,11 @@ export default function LoginScreen() {
     <View style={styles.wrap}>
       <Card>
         <Text style={styles.h1}>STEMM Lab</Text>
-        <Text style={styles.sub}>Quick join (anonymous) or teacher email login</Text>
-        <Button title="Quick join (anonymous)" onPress={quickJoin} disabled={busy} />
+        <Text style={styles.sub}>
+          Quick join opens the app locally for testing — no Firebase account. Use teacher login when
+          auth is enabled.
+        </Text>
+        <Button title="Quick join (local testing)" onPress={quickJoin} disabled={busy} />
         <Text style={styles.label}>Email</Text>
         <TextInput
           value={email}

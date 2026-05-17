@@ -4,10 +4,12 @@ import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { registerEmail } from '../../services/auth';
+import { useAuthStore } from '../../store/authStore';
 import { colors, spacing } from '../../theme/tokens';
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const setQuickJoin = useAuthStore((s) => s.setQuickJoinActive);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -15,6 +17,7 @@ export default function RegisterScreen() {
   const go = async () => {
     setBusy(true);
     try {
+      setQuickJoin(false);
       await registerEmail(email, password);
       router.replace('/(tabs)');
     } catch (e) {

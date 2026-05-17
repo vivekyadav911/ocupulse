@@ -1,0 +1,7 @@
+appId: com.ocupulse.stemmlab
+---
+- launchApp
+- tapOn: 'Quick join (anonymous)'
+- tapOn: 'Earthquake Structure'
+- tapOn: 'Vibrate & record 5 s'
+- tapOn: 'Save result'
