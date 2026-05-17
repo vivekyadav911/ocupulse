@@ -1,36 +1,67 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LayoutChangeEvent, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { StatReadout } from '../../components/StatReadout';
-import { averageReactionMs, traceScoreFromMse } from '../../lib/calc/reactionStats';
+import {
+  averageReactionMs,
+  combinedReactionScore,
+  idealTraceSvgPath,
+  randomReactionDelayMs,
+  tracePathMse,
+  traceScoreFromMse,
+  type Point2,
+} from '../../lib/calc/reactionStats';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
+import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
+
+const REACTION_ROUNDS = 5;
 
 export default function ReactionScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
+  const { colors } = useAppTheme();
   const styles = useThemedStyles(activityScreenStyles);
-  const [step, setStep] = useState<'react' | 'trace'>('react');
+
+  const [phase, setPhase] = useState<'react' | 'trace'>('react');
   const [times, setTimes] = useState<number[]>([]);
   const [armed, setArmed] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const [tracePoints, setTracePoints] = useState<Point2[]>([]);
+  const [traceSize, setTraceSize] = useState({ w: 300, h: 160 });
+  const [saving, setSaving] = useState(false);
+
   const startPress = useRef(0);
-  const [traceNoise, setTraceNoise] = useState(0.01);
+  const delayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDelayTimer = useCallback(() => {
+    if (delayTimer.current) {
+      clearTimeout(delayTimer.current);
+      delayTimer.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearDelayTimer(), [clearDelayTimer]);
 
   const armRound = useCallback(() => {
+    clearDelayTimer();
     setArmed(false);
-    const delay = 1000 + Math.random() * 3000;
-    setTimeout(() => {
+    setWaiting(true);
+    delayTimer.current = setTimeout(() => {
+      setWaiting(false);
       setArmed(true);
       startPress.current = performance.now();
-    }, delay);
-  }, []);
+    }, randomReactionDelayMs());
+  }, [clearDelayTimer]);
 
   const startReact = () => {
     setTimes([]);
+    setPhase('react');
     armRound();
   };
 
@@ -38,10 +69,11 @@ export default function ReactionScreen() {
     if (!armed) return;
     const ms = performance.now() - startPress.current;
     setArmed(false);
-    setTimes((t) => {
-      const next = [...t, ms];
-      if (next.length >= 5) {
-        setStep('trace');
+    setTimes((prev) => {
+      const next = [...prev, ms];
+      if (next.length >= REACTION_ROUNDS) {
+        setPhase('trace');
+        setTracePoints([]);
         return next;
       }
       armRound();
@@ -49,52 +81,107 @@ export default function ReactionScreen() {
     });
   };
 
+  const onTraceLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width > 0 && height > 0) setTraceSize({ w: width, h: height });
+  };
+
+  const addTracePoint = (locationX: number, locationY: number) => {
+    const x = locationX / traceSize.w;
+    const y = locationY / traceSize.h;
+    setTracePoints((pts) => [
+      ...pts,
+      { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) },
+    ]);
+  };
+
   const avgReact = averageReactionMs(times);
-  const traceScore = traceScoreFromMse(traceNoise);
-  const combo = Math.round(
-    Math.min(50, avgReact > 0 ? 5000 / avgReact : 0) + Math.min(50, traceScore * 0.5),
-  );
+  const traceMse = tracePathMse(tracePoints);
+  const traceScore = traceScoreFromMse(traceMse);
+  const combo = combinedReactionScore(avgReact, traceScore);
+  const pathD = idealTraceSvgPath(traceSize.w, traceSize.h);
 
   const save = async () => {
-    const sessionId = await writeSessionOptimistic({
-      activityType: 'reaction',
-      teamName: team,
-      score: Math.min(100, combo),
-      payload: { avgReactionMs: avgReact, traceScore, taps: times },
-    });
-    router.push(`/results/${sessionId}`);
+    if (times.length < REACTION_ROUNDS || tracePoints.length < 8) return;
+    setSaving(true);
+    try {
+      const sessionId = await writeSessionOptimistic({
+        activityType: 'reaction',
+        teamName: team,
+        score: combo,
+        payload: {
+          avgReactionMs: avgReact,
+          reactionTimesMs: times,
+          traceMse,
+          traceScore,
+          tracePointCount: tracePoints.length,
+        },
+      });
+      router.push(`/results/${sessionId}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <View style={styles.wrap}>
       <Card>
         <Text style={styles.title}>Reaction Board</Text>
-        {step === 'react' ? (
+
+        {phase === 'react' ? (
           <>
-            <StatReadout label="Completed taps" value={`${times.length} / 5`} />
-            <StatReadout label="Avg ms (live)" value={`${Math.round(avgReact)}`} />
-            <Text style={styles.instr}>
-              {armed
-                ? 'Tap the button now!'
-                : times.length >= 5
-                  ? 'Done — go to trace'
-                  : 'Wait for prompt…'}
+            <Text style={styles.p}>
+              Phase A: wait for the prompt, then tap as fast as you can (5 rounds).
             </Text>
-            <Button title="Start reaction rounds" onPress={startReact} />
+            <StatReadout label="Completed taps" value={`${times.length} / ${REACTION_ROUNDS}`} />
+            <StatReadout
+              label="Avg reaction (ms)"
+              value={times.length ? `${Math.round(avgReact)}` : '—'}
+            />
+            <Text style={styles.instr}>
+              {armed ? 'Tap now!' : waiting ? 'Wait…' : 'Press start to begin'}
+            </Text>
+            <Button
+              title="Start reaction rounds"
+              onPress={startReact}
+              disabled={waiting || armed}
+            />
             <Button title="Tap!" onPress={registerTap} disabled={!armed} />
           </>
         ) : (
           <>
-            <StatReadout label="Trace deviation metric" value={`${traceNoise.toFixed(4)}`} />
+            <Text style={styles.p}>
+              Phase B: drag along the sine path. Lower deviation = higher trace score.
+            </Text>
+            <StatReadout label="Avg reaction (ms)" value={`${Math.round(avgReact)}`} />
+            <StatReadout label="Trace score" value={`${traceScore}`} />
+            <StatReadout label="Combined score" value={`${combo}`} />
             <View
-              style={styles.trace}
-              onTouchMove={(e) =>
-                setTraceNoise((n) => n + Math.abs(e.nativeEvent.locationY) * 0.00001)
-              }
+              style={[styles.trace, { padding: 0, overflow: 'hidden' }]}
+              onLayout={onTraceLayout}
+              onTouchStart={(e) => addTracePoint(e.nativeEvent.locationX, e.nativeEvent.locationY)}
+              onTouchMove={(e) => addTracePoint(e.nativeEvent.locationX, e.nativeEvent.locationY)}
             >
-              <Text style={styles.traceHelp}>Drag finger here</Text>
+              <Svg width={traceSize.w} height={traceSize.h}>
+                <Path
+                  d={pathD}
+                  stroke={colors.accent}
+                  strokeWidth={3}
+                  fill="none"
+                  strokeDasharray="8 6"
+                />
+              </Svg>
+              {tracePoints.length < 8 ? (
+                <Text style={[styles.traceHelp, { position: 'absolute' }]} pointerEvents="none">
+                  Drag finger along path
+                </Text>
+              ) : null}
             </View>
-            <Button title="Save result" onPress={save} />
+            <Button
+              title={saving ? 'Saving…' : 'Save result'}
+              onPress={() => void save()}
+              disabled={tracePoints.length < 8 || saving}
+            />
           </>
         )}
       </Card>
