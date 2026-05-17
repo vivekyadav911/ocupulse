@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
@@ -9,13 +9,15 @@ import { useMicrophoneDb } from '../../hooks/useMicrophoneDb';
 import { useLocation } from '../../hooks/useLocation';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
-import { colors, spacing } from '../../theme/tokens';
+import { activityScreenStyles } from '../../theme/activityScreenStyles';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 const DURATION_MS = 30_000;
 
 export default function SoundScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
+  const styles = useThemedStyles(activityScreenStyles);
   const { start, stop, peakDb, avgDb } = useMicrophoneDb();
   const { coords, address, refresh } = useLocation();
   const [running, setRunning] = useState(false);
@@ -84,10 +86,3 @@ export default function SoundScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: spacing.md, color: colors.primary },
-  addr: { color: colors.muted, marginBottom: spacing.sm },
-  map: { width: '100%', height: 180, marginTop: spacing.md, borderRadius: 12 },
-});

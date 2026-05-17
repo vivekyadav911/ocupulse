@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { StatReadout } from '../../components/StatReadout';
@@ -7,11 +7,13 @@ import { useGyroscope } from '../../hooks/useGyroscope';
 import { smoothnessScore } from '../../lib/calc/smoothness';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
-import { colors, spacing } from '../../theme/tokens';
+import { activityScreenStyles } from '../../theme/activityScreenStyles';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function HumanPerfScreen() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
+  const styles = useThemedStyles(activityScreenStyles);
   const { series, hz } = useGyroscope();
   const dt = hz > 0 ? 1 / hz : 1 / 60;
   const score = smoothnessScore(series, dt);
@@ -39,9 +41,3 @@ export default function HumanPerfScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: spacing.md, color: colors.primary },
-  p: { color: colors.muted, marginBottom: spacing.md },
-});

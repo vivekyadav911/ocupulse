@@ -1,16 +1,42 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { signInAnon, signInEmail } from '../../services/auth';
-import { colors, spacing } from '../../theme/tokens';
+import { useAppTheme } from '../../theme/useAppTheme';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const styles = useThemedStyles((t) => ({
+    wrap: {
+      flex: 1,
+      padding: t.spacing.md,
+      justifyContent: 'center',
+    },
+    h1: { fontSize: 26, fontWeight: '800', color: t.colors.text, marginBottom: t.spacing.sm },
+    sub: { marginBottom: t.spacing.md, color: t.colors.muted },
+    label: {
+      marginTop: t.spacing.sm,
+      marginBottom: t.spacing.xs,
+      fontWeight: '600',
+      color: t.colors.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: t.colors.muted,
+      borderRadius: 8,
+      padding: t.spacing.sm,
+      marginBottom: t.spacing.sm,
+      color: t.colors.text,
+      backgroundColor: t.colors.surface,
+    },
+  }));
 
   const quickJoin = async () => {
     setBusy(true);
@@ -49,6 +75,7 @@ export default function LoginScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
           placeholder="teacher@school.edu"
+          placeholderTextColor={colors.muted}
           style={styles.input}
           accessibilityLabel="Teacher email"
         />
@@ -58,6 +85,7 @@ export default function LoginScreen() {
           onChangeText={setPassword}
           secureTextEntry
           placeholder="••••••••"
+          placeholderTextColor={colors.muted}
           style={styles.input}
           accessibilityLabel="Password"
         />
@@ -83,22 +111,3 @@ export default function LoginScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    padding: spacing.md,
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-  },
-  h1: { fontSize: 26, fontWeight: '800', color: colors.primary, marginBottom: spacing.sm },
-  sub: { marginBottom: spacing.md, color: colors.muted },
-  label: { marginTop: spacing.sm, marginBottom: spacing.xs, fontWeight: '600', color: colors.text },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.muted,
-    borderRadius: 8,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-});

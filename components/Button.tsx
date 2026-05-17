@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -7,7 +7,8 @@ import {
   type ViewStyle,
   type TextStyle,
 } from 'react-native';
-import { colors, radii, spacing, typography } from '../theme/tokens';
+import { useAppTheme } from '../theme/useAppTheme';
+import type { ThemeColors } from '../theme/tokens';
 
 type Variant = 'primary' | 'secondary' | 'danger';
 
@@ -18,6 +19,21 @@ export type ButtonProps = Omit<PressableProps, 'style'> & {
   textStyle?: TextStyle;
 };
 
+function variantColors(variant: Variant, colors: ThemeColors) {
+  if (variant === 'primary') {
+    return { bg: colors.primary, fg: colors.textInverse, borderWidth: 0 as const };
+  }
+  if (variant === 'danger') {
+    return { bg: colors.danger, fg: colors.textInverse, borderWidth: 0 as const };
+  }
+  return {
+    bg: colors.surface,
+    fg: colors.text,
+    borderWidth: 1 as const,
+    borderColor: colors.muted,
+  };
+}
+
 export function Button({
   title,
   variant = 'primary',
@@ -26,19 +42,29 @@ export function Button({
   accessibilityLabel,
   ...rest
 }: ButtonProps) {
+  const { colors, spacing, radii, typography } = useAppTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        base: {
+          minHeight: 48,
+          minWidth: 48,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderRadius: radii.md,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        text: {
+          fontSize: typography.body,
+          fontWeight: '600',
+        },
+      }),
+    [spacing, radii, typography],
+  );
+
   const label = accessibilityLabel ?? title;
-  const bg =
-    variant === 'primary'
-      ? colors.primary
-      : variant === 'danger'
-        ? colors.danger
-        : colors.surfaceAlt;
-  const fg =
-    variant === 'secondary'
-      ? colors.text
-      : variant === 'danger'
-        ? colors.textInverse
-        : colors.textInverse;
+  const palette = variantColors(variant, colors);
 
   return (
     <Pressable
@@ -46,28 +72,17 @@ export function Button({
       accessibilityLabel={label}
       style={({ pressed }) => [
         styles.base,
-        { backgroundColor: bg, opacity: pressed ? 0.85 : 1 },
+        {
+          backgroundColor: palette.bg,
+          borderWidth: palette.borderWidth,
+          borderColor: 'borderColor' in palette ? palette.borderColor : undefined,
+          opacity: pressed ? 0.85 : 1,
+        },
         style,
       ]}
       {...rest}
     >
-      <Text style={[styles.text, { color: fg }, textStyle]}>{title}</Text>
+      <Text style={[styles.text, { color: palette.fg }, textStyle]}>{title}</Text>
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 48,
-    minWidth: 48,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  text: {
-    fontSize: typography.body,
-    fontWeight: '600',
-  },
-});

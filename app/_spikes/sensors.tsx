@@ -1,23 +1,41 @@
-import { useEffect, useRef, useState } from 'react';
-import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Dimensions, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useGyroscope } from '../../hooks/useGyroscope';
-import { colors, spacing } from '../../theme/tokens';
+import { useAppTheme } from '../../theme/useAppTheme';
+import { useThemedStyles } from '../../theme/themedStyles';
 
-const CHART_WIDTH = Dimensions.get('window').width - spacing.md * 2;
 const CHART_POINTS = 60;
-/** Chart repaint target ≥30 fps (US12). */
 const CHART_INTERVAL_MS = 1000 / 30;
 
-const chartConfig = {
-  color: () => colors.primary,
-  labelColor: () => colors.muted,
-  backgroundColor: colors.surface,
-  propsForDots: { r: '0' },
-};
-
 export default function SensorsSpike() {
+  const { colors, spacing } = useAppTheme();
+  const styles = useThemedStyles((t) => ({
+    wrap: { flex: 1, padding: t.spacing.md },
+    h1: { fontSize: 20, fontWeight: '800', marginBottom: t.spacing.md, color: t.colors.primary },
+    label: { fontSize: 14, fontWeight: '700', color: t.colors.text },
+    vec: { fontSize: 14, color: t.colors.muted, marginBottom: t.spacing.xs },
+    chartTitle: {
+      marginTop: t.spacing.md,
+      marginBottom: t.spacing.sm,
+      fontWeight: '600',
+      color: t.colors.text,
+    },
+    chart: { borderRadius: 12 },
+    dev: { marginTop: t.spacing.md, fontSize: 12, color: t.colors.muted },
+  }));
+  const chartWidth = Dimensions.get('window').width - spacing.md * 2;
+  const chartConfig = useMemo(
+    () => ({
+      color: () => colors.primary,
+      labelColor: () => colors.muted,
+      backgroundColor: colors.surface,
+      propsForDots: { r: '0' },
+    }),
+    [colors],
+  );
+
   const { x, y, z, magnitude: accelMag } = useAccelerometer();
   const gyro = useGyroscope();
 
@@ -56,7 +74,7 @@ export default function SensorsSpike() {
           labels: Array(6).fill(''),
           datasets: [{ data: chartSeries.length >= 2 ? chartSeries : [0, accelMag, 0.1, 0.2] }],
         }}
-        width={CHART_WIDTH}
+        width={chartWidth}
         height={220}
         chartConfig={chartConfig}
         style={styles.chart}
@@ -73,18 +91,3 @@ export default function SensorsSpike() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  h1: { fontSize: 20, fontWeight: '800', marginBottom: spacing.md, color: colors.primary },
-  label: { fontSize: 14, fontWeight: '700', color: colors.text },
-  vec: { fontSize: 14, color: colors.muted, marginBottom: spacing.xs },
-  chartTitle: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  chart: { borderRadius: 12 },
-  dev: { marginTop: spacing.md, fontSize: 12, color: colors.muted },
-});
