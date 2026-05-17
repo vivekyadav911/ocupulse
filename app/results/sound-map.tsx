@@ -1,7 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { StemmMap } from '../../components/StemmMap';
 import { markerColorForPeakDb } from '../../lib/sound/markerColor';
 import type { SoundSample } from '../../lib/sound/types';
 import { subscribeLeaderboard } from '../../services/firestore';
@@ -75,30 +75,18 @@ export default function SoundMapScreen() {
       <Text style={styles.legend}>
         Green under 60 dB · Amber 60–85 · Red over 85 (SQLite + Firestore)
       </Text>
-      <MapView style={styles.map} initialRegion={region}>
-        {markers.map((m) => {
-          const color = markerColorForPeakDb(m.peakDb);
-          return (
-            <Marker
-              key={m.id}
-              coordinate={{ latitude: m.lat, longitude: m.lng }}
-              title={`${Math.round(m.peakDb)} dB peak`}
-              description={m.address || m.teamName}
-            >
-              <View
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  backgroundColor: color,
-                  borderWidth: 2,
-                  borderColor: '#fff',
-                }}
-              />
-            </Marker>
-          );
-        })}
-      </MapView>
+      <StemmMap
+        style={styles.map}
+        initialRegion={region}
+        markers={markers.map((m) => ({
+          id: m.id,
+          latitude: m.lat,
+          longitude: m.lng,
+          pinColor: markerColorForPeakDb(m.peakDb),
+          title: `${Math.round(m.peakDb)} dB peak`,
+          description: m.address || m.teamName,
+        }))}
+      />
       <FlatList
         data={markers}
         keyExtractor={(i) => i.id}

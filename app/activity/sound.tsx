@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 import { Button } from '../../components/Button';
+import { StemmMap } from '../../components/StemmMap';
 import { Card } from '../../components/Card';
 import { StatReadout } from '../../components/StatReadout';
 import { useMicrophoneDb } from '../../hooks/useMicrophoneDb';
@@ -120,7 +120,7 @@ export default function SoundScreen() {
           onPress={() => router.push('/results/sound-map')}
         />
         {coords ? (
-          <MapView
+          <StemmMap
             style={styles.map}
             initialRegion={{
               latitude: coords.lat,
@@ -128,20 +128,16 @@ export default function SoundScreen() {
               latitudeDelta: 0.01,
               longitudeDelta: 0.01,
             }}
-          >
-            <Marker coordinate={{ latitude: coords.lat, longitude: coords.lng }} title={address}>
-              <View
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  backgroundColor: pinColor,
-                  borderWidth: 2,
-                  borderColor: '#fff',
-                }}
-              />
-            </Marker>
-          </MapView>
+            markers={[
+              {
+                id: 'preview',
+                latitude: coords.lat,
+                longitude: coords.lng,
+                pinColor,
+                title: address,
+              },
+            ]}
+          />
         ) : null}
       </Card>
     </View>

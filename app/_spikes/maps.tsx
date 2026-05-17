@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 import { Button } from '../../components/Button';
+import { StemmMap } from '../../components/StemmMap';
 import { StatReadout } from '../../components/StatReadout';
 import { useLocation } from '../../hooks/useLocation';
 import { useAppTheme } from '../../theme/useAppTheme';
@@ -61,13 +61,22 @@ export default function MapsSpike() {
       ) : null}
 
       {region ? (
-        <MapView style={styles.map} region={region} showsUserLocation showsMyLocationButton>
-          <Marker
-            coordinate={{ latitude: coords!.lat, longitude: coords!.lng }}
-            title={suburb || 'You are here'}
-            description={address}
-          />
-        </MapView>
+        <StemmMap
+          style={styles.map}
+          initialRegion={region}
+          showsUserLocation
+          showsMyLocationButton
+          markers={[
+            {
+              id: 'gps',
+              latitude: coords!.lat,
+              longitude: coords!.lng,
+              pinColor: colors.primary,
+              title: suburb || 'You are here',
+              description: address,
+            },
+          ]}
+        />
       ) : (
         <View style={styles.mapPlaceholder}>
           <Text style={styles.placeholderText}>
