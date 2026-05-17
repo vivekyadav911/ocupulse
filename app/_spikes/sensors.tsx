@@ -1,79 +1,90 @@
-import { Dimensions, ScrollView, StyleSheet, Text } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useGyroscope } from '../../hooks/useGyroscope';
 import { colors, spacing } from '../../theme/tokens';
 
-const w = Dimensions.get('window').width - spacing.md * 2;
+const CHART_WIDTH = Dimensions.get('window').width - spacing.md * 2;
+const CHART_POINTS = 60;
+/** Chart repaint target ≥30 fps (US12). */
+const CHART_INTERVAL_MS = 1000 / 30;
 
-function HzReadout({ label, hz, targetHz }: { label: string; hz: number; targetHz: number }) {
-  const delta = Math.abs(hz - targetHz);
-  const ok = hz > 0 && delta <= 5;
-  return (
-    <Text style={styles.t}>
-      {label}: {hz.toFixed(1)} Hz (target {targetHz.toFixed(0)} Hz){' '}
-      {hz > 0 ? (ok ? '✓' : `Δ${delta.toFixed(1)}`) : '…'}
-    </Text>
-  );
-}
+const chartConfig = {
+  color: () => colors.primary,
+  labelColor: () => colors.muted,
+  backgroundColor: colors.surface,
+  propsForDots: { r: '0' },
+};
 
 export default function SensorsSpike() {
-  const accel = useAccelerometer();
+  const { x, y, z, magnitude: accelMag } = useAccelerometer();
   const gyro = useGyroscope();
-  const chartData =
-    accel.series.length > 1
-      ? accel.series.slice(-60)
-      : [0, accel.magnitude, gyro.magnitude, 0.1, 0.2, 0.3];
+
+  const magHistory = useRef<number[]>(Array(CHART_POINTS).fill(0));
+  const [chartSeries, setChartSeries] = useState<number[]>(() => [...magHistory.current]);
+
+  useEffect(() => {
+    magHistory.current = [...magHistory.current.slice(1), accelMag];
+  }, [accelMag]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setChartSeries([...magHistory.current]);
+    }, CHART_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <ScrollView contentContainerStyle={styles.wrap}>
-      <Text style={styles.h}>Accelerometer</Text>
-      <Text style={styles.t}>Magnitude: {accel.magnitude.toFixed(3)}</Text>
-      <HzReadout label="Rate" hz={accel.hz} targetHz={accel.targetHz} />
-      <Text style={styles.t}>
-        5s stats — mean {accel.stats.mean.toFixed(3)}, peak {accel.stats.peak.toFixed(3)}, RMS{' '}
-        {accel.stats.rms.toFixed(3)}
-      </Text>
-      <Text style={styles.t}>Ring samples: {accel.buffer.length}</Text>
+    <View style={styles.wrap}>
+      <Text style={styles.h1}>Sensor spike (60 Hz)</Text>
 
-      <Text style={[styles.h, { marginTop: spacing.md }]}>Gyroscope</Text>
-      <Text style={styles.t}>Magnitude: {gyro.magnitude.toFixed(3)}</Text>
-      <HzReadout label="Rate" hz={gyro.hz} targetHz={gyro.targetHz} />
-      <Text style={styles.t}>
-        5s stats — mean {gyro.stats.mean.toFixed(3)}, peak {gyro.stats.peak.toFixed(3)}, RMS{' '}
-        {gyro.stats.rms.toFixed(3)}
+      <Text style={styles.label}>Accelerometer</Text>
+      <Text style={styles.vec}>
+        x {x.toFixed(2)} · y {y.toFixed(2)} · z {z.toFixed(2)} · |a| {accelMag.toFixed(3)}
       </Text>
-      <Text style={styles.t}>Ring samples: {gyro.buffer.length}</Text>
+
+      <Text style={[styles.label, { marginTop: spacing.sm }]}>Gyroscope</Text>
+      <Text style={styles.vec}>
+        x {gyro.x.toFixed(2)} · y {gyro.y.toFixed(2)} · z {gyro.z.toFixed(2)} · |ω|{' '}
+        {gyro.magnitude.toFixed(3)}
+      </Text>
+
+      <Text style={styles.chartTitle}>Live accel magnitude (≥30 fps chart)</Text>
+      <LineChart
+        data={{
+          labels: Array(6).fill(''),
+          datasets: [{ data: chartSeries.length >= 2 ? chartSeries : [0, accelMag, 0.1, 0.2] }],
+        }}
+        width={CHART_WIDTH}
+        height={220}
+        chartConfig={chartConfig}
+        style={styles.chart}
+        withInnerLines={false}
+        withOuterLines={false}
+      />
 
       {__DEV__ ? (
         <Text style={styles.dev}>
-          Dev: mount/unmount counts for ocupulse/*-listener labels should stay balanced when you
-          leave this screen.
+          Dev: leaving this screen should balance ocupulse/accelerometer-listener and
+          ocupulse/gyroscope-listener mount/unmount counts.
         </Text>
       ) : null}
-
-      <LineChart
-        data={{
-          labels: ['', '', '', '', '', ''],
-          datasets: [{ data: chartData }],
-        }}
-        width={w}
-        height={200}
-        chartConfig={{
-          color: () => colors.primary,
-          labelColor: () => colors.muted,
-          backgroundColor: colors.surface,
-          propsForDots: { r: '0' },
-        }}
-        style={{ marginTop: spacing.md, borderRadius: 12 }}
-      />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { padding: spacing.md },
-  h: { fontSize: 18, fontWeight: '700', marginBottom: spacing.sm, color: colors.text },
-  t: { fontSize: 16, marginBottom: spacing.sm, color: colors.text },
-  dev: { fontSize: 13, color: colors.muted, marginTop: spacing.sm },
+  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
+  h1: { fontSize: 20, fontWeight: '800', marginBottom: spacing.md, color: colors.primary },
+  label: { fontSize: 14, fontWeight: '700', color: colors.text },
+  vec: { fontSize: 14, color: colors.muted, marginBottom: spacing.xs },
+  chartTitle: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  chart: { borderRadius: 12 },
+  dev: { marginTop: spacing.md, fontSize: 12, color: colors.muted },
 });
