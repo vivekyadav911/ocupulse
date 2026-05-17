@@ -41,6 +41,8 @@ export default function HandFanScreen() {
           onChangeText={setShift}
           keyboardType="decimal-pad"
           style={styles.input}
+          accessibilityLabel="Centroid shift in pixels"
+          accessibilityHint="Enter the horizontal shift measured from camera tracking"
         />
         <Text style={styles.meta}>Estimated angle: {angle}°</Text>
         <Button title="Save result" onPress={save} />

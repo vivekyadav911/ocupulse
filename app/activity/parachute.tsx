@@ -48,6 +48,8 @@ export default function ParachuteScreen() {
           onChangeText={setImpact}
           keyboardType="decimal-pad"
           style={styles.input}
+          accessibilityLabel="Impact speed in meters per second"
+          accessibilityHint="Enter the landing impact speed"
         />
         <Text style={styles.label}>Contact time (s)</Text>
         <TextInput
@@ -55,6 +57,8 @@ export default function ParachuteScreen() {
           onChangeText={setContact}
           keyboardType="decimal-pad"
           style={styles.input}
+          accessibilityLabel="Contact time in seconds"
+          accessibilityHint="Enter how long the landing contact lasted"
         />
         <Button title="Save result" onPress={save} />
         <Button title="Home" variant="secondary" onPress={() => router.back()} />

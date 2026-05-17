@@ -78,6 +78,7 @@ export default function LoginScreen() {
           placeholderTextColor={colors.muted}
           style={styles.input}
           accessibilityLabel="Teacher email"
+          accessibilityHint="Enter your school email address"
         />
         <Text style={styles.label}>Password</Text>
         <TextInput
@@ -88,6 +89,7 @@ export default function LoginScreen() {
           placeholderTextColor={colors.muted}
           style={styles.input}
           accessibilityLabel="Password"
+          accessibilityHint="Enter your account password"
         />
         <Button
           title="Teacher login (email)"

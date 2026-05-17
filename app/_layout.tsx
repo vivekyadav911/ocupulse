@@ -2,7 +2,7 @@ import 'react-native-gesture-handler';
 import { registerBackgroundSync } from '../services/tasks';
 
 import NetInfo from '@react-native-community/netinfo';
-import { Stack } from 'expo-router';
+import { Slot } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
 import { onAuthChange } from '../services/auth';
@@ -11,17 +11,7 @@ import { syncOutbox } from '../services/firestore';
 import { ensureNotificationPermissions, scheduleStreakReminder } from '../services/notifications';
 
 import { ThemeProvider } from '../theme/ThemeProvider';
-import { useAppTheme } from '../theme/useAppTheme';
 import { useAuthStore } from '../store/authStore';
-
-function RootNavigator() {
-  const { colors } = useAppTheme();
-  return (
-    <Stack
-      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surfaceAlt } }}
-    />
-  );
-}
 
 export default function RootLayout() {
   const setUser = useAuthStore((s) => s.setUser);
@@ -50,7 +40,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <RootNavigator />
+      <Slot />
     </ThemeProvider>
   );
 }
