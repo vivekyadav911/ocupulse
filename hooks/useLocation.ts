@@ -1,30 +1,58 @@
 import * as Location from 'expo-location';
 import { useCallback, useState } from 'react';
 
-export function useLocationHook() {
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [address, setAddress] = useState<string>('');
+export type LocationCoords = { lat: number; lng: number };
+
+/** Prefer suburb-style fields from reverse geocode (AU: district / subregion / city). */
+export function suburbFromGeocode(place: Location.LocationGeocodedAddress | undefined): string {
+  if (!place) return '';
+  return place.district || place.subregion || place.city || place.name || place.region || '';
+}
+
+export function useLocation() {
+  const [coords, setCoords] = useState<LocationCoords | null>(null);
+  const [suburb, setSuburb] = useState('');
+  const [address, setAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     setError(null);
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      setError('Location permission denied');
-      return;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setError('Location permission denied');
+        setCoords(null);
+        return;
+      }
+
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      setCoords({ lat, lng });
+
+      const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      const g = geo[0];
+      const suburbLabel = suburbFromGeocode(g);
+      setSuburb(suburbLabel);
+      setAddress(
+        g
+          ? [suburbLabel, g.region, g.country].filter(Boolean).join(', ') ||
+              `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+          : `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
     }
-    const pos = await Location.getCurrentPositionAsync({});
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    setCoords({ lat, lng });
-    const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-    const g = geo[0];
-    setAddress(
-      g
-        ? [g.street, g.city, g.region, g.country].filter(Boolean).join(', ')
-        : `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-    );
   }, []);
 
-  return { coords, address, error, refresh };
+  return { coords, suburb, address, error, loading, refresh };
 }
+
+/** @deprecated Use `useLocation` */
+export const useLocationHook = useLocation;
