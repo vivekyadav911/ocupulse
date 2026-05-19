@@ -1,7 +1,7 @@
 appId: com.ocupulse.stemmlab
 ---
 - launchApp
-- tapOn: 'Quick join (anonymous)'
+- tapOn: 'Quick join (local testing)'
 - tapOn: 'Reaction Board'
 - tapOn: 'Start reaction rounds'
 - tapOn: 'Tap!'

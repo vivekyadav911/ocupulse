@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 
+import { canLoadGoogleMobileAdsNativeModule } from '../lib/canLoadGoogleMobileAdsNative';
+
 type AdsMod = typeof import('react-native-google-mobile-ads');
 
 export function StemmBannerAd(): ReactNode {
@@ -11,8 +13,12 @@ export function StemmBannerAd(): ReactNode {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    if (!canLoadGoogleMobileAdsNativeModule()) {
+      setAds(null);
+      return;
+    }
     try {
-      // Dynamic import for Expo Go where native module may be absent
+      // Dev client / EAS binary only; require() still throws if module not linked.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const m = require('react-native-google-mobile-ads') as AdsMod;
       setAds(m);

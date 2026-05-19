@@ -1,4 +1,5 @@
 import { useSessionStore } from '../store/sessionStore';
+import { canLoadGoogleMobileAdsNativeModule } from './canLoadGoogleMobileAdsNative';
 
 /** Kid-safe gate: interstitial only for high-school cohorts (Assessment ethics + rubric). */
 export function shouldShowInterstitialAd(): boolean {
@@ -8,6 +9,7 @@ export function shouldShowInterstitialAd(): boolean {
 /** No-op in Expo Go; loads Google's test interstitial in dev client when allowed. */
 export async function showResultsInterstitialIfAllowed(): Promise<void> {
   if (!shouldShowInterstitialAd()) return;
+  if (!canLoadGoogleMobileAdsNativeModule()) return;
   /* eslint-disable @typescript-eslint/no-require-imports -- optional native module */
   try {
     const ads =
