@@ -2,8 +2,9 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
+import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
+import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { StatReadout } from '../../components/StatReadout';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
@@ -98,9 +99,8 @@ export default function EarthquakeScreen() {
   };
 
   return (
-    <View style={styles.wrap}>
-      <Card>
-        <Text style={styles.title}>Earthquake Structure</Text>
+    <ExperimentScreen>
+      <ActivityCard title="Earthquake Structure" live={phase === 'go'}>
         <Text style={styles.p}>
           Place the phone on your model, then vibrate for 5 s while we measure how much it wobbles.
         </Text>
@@ -110,17 +110,20 @@ export default function EarthquakeScreen() {
           label="Samples / haptic pulses"
           value={phase === 'idle' ? '—' : `${sampleCount} / ${hapticCount}`}
         />
-        <Button
-          title={phase === 'go' ? 'Shaking…' : 'Vibrate & record 5 s'}
-          onPress={start}
-          disabled={phase === 'go' || saving || recordingDisabled}
-        />
-        <Button
-          title={saving ? 'Saving…' : 'Save result'}
-          onPress={() => void save()}
-          disabled={phase !== 'done' || saving}
-        />
-      </Card>
-    </View>
+        <View style={styles.actions}>
+          <Button
+            title={phase === 'go' ? 'Shaking…' : 'Vibrate & record 5 s'}
+            onPress={start}
+            disabled={phase === 'go' || saving || recordingDisabled}
+          />
+          <Button
+            title={saving ? 'Saving…' : 'Save result'}
+            onPress={() => void save()}
+            disabled={phase !== 'done' || saving}
+          />
+          <Button title="Home" variant="secondary" onPress={() => router.back()} />
+        </View>
+      </ActivityCard>
+    </ExperimentScreen>
   );
 }

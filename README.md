@@ -1,6 +1,6 @@
-# STEMM Lab (ocupulse)
+# Ocupulse
 
-Cross-platform **STEMM Lab** mobile app — Expo / React Native, Firebase (Auth + Firestore + Test Lab), seven sensor-driven activities, offline-first SQLite outbox, and Azure DevOps–tracked sprints (CSE3MAD Assessment 4).
+Cross-platform **Ocupulse** mobile app — Expo / React Native, Firebase (Auth + Firestore + Test Lab), seven sensor-driven activities, offline-first SQLite outbox, and Azure DevOps–tracked sprints (CSE3MAD Assessment 4).
 
 **Expo SDK**: this repo targets the SDK from `create-expo-app` (≥ 51; currently **SDK 54**).
 

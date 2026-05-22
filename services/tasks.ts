@@ -11,7 +11,7 @@ TaskManager.defineTask(BG_SYNC_OUTBOX, async () => {
     await syncOutbox();
     return BackgroundFetch.BackgroundFetchResult.NewData;
   } catch (e) {
-    console.warn('[STEMM Lab] BG_SYNC_OUTBOX failed:', e);
+    console.warn('[Ocupulse] BG_SYNC_OUTBOX failed:', e);
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
@@ -32,7 +32,7 @@ export async function registerBackgroundSync(): Promise<void> {
 
     const status = await BackgroundFetch.getStatusAsync();
     if (status === BackgroundFetch.BackgroundFetchStatus.Denied) {
-      console.warn('[STEMM Lab] Background fetch denied by OS');
+      console.warn('[Ocupulse] Background fetch denied by OS');
       return;
     }
 
@@ -45,6 +45,6 @@ export async function registerBackgroundSync(): Promise<void> {
       });
     }
   } catch (e) {
-    console.warn('[STEMM Lab] Background fetch registration:', e);
+    console.warn('[Ocupulse] Background fetch registration:', e);
   }
 }

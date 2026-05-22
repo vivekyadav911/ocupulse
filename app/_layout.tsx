@@ -5,6 +5,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { Slot } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAuthChange } from '../services/auth';
 import { runMigrations } from '../services/db/sqlite';
 import { syncOutbox } from '../services/firestore';
@@ -39,8 +40,10 @@ export default function RootLayout() {
   }, [setUser]);
 
   return (
-    <ThemeProvider>
-      <Slot />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <Slot />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

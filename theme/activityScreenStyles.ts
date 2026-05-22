@@ -3,27 +3,22 @@ import type { AppTheme } from './useAppTheme';
 /** Shared layout styles for activity screens. */
 export function activityScreenStyles(t: AppTheme) {
   return {
-    wrap: { flex: 1, padding: t.spacing.md },
-    title: {
-      fontSize: 22,
-      fontWeight: '800' as const,
+    cardHeader: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
       marginBottom: t.spacing.md,
-      color: t.colors.text,
     },
-    label: { fontWeight: '600' as const, marginTop: t.spacing.sm, color: t.colors.text },
-    p: { color: t.colors.muted, marginBottom: t.spacing.md },
-    input: {
-      borderWidth: 1,
-      borderColor: t.colors.muted,
-      borderRadius: 8,
-      padding: t.spacing.sm,
-      marginTop: t.spacing.xs,
+    title: {
+      fontSize: 20,
+      fontWeight: '800' as const,
       color: t.colors.text,
-      backgroundColor: t.colors.surface,
+      flex: 1,
     },
-    meta: { color: t.colors.muted, marginTop: t.spacing.sm },
+    p: { color: t.colors.muted, marginBottom: t.spacing.md, lineHeight: 22 },
+    meta: { color: t.colors.muted, marginTop: t.spacing.sm, marginBottom: t.spacing.sm },
     addr: { color: t.colors.muted, marginBottom: t.spacing.sm },
-    map: { width: '100%' as const, height: 180, marginTop: t.spacing.md, borderRadius: 12 },
+    map: { width: '100%' as const, height: 180, marginTop: t.spacing.md, borderRadius: t.radii.lg },
     instr: {
       fontSize: 16,
       marginVertical: t.spacing.md,
@@ -33,12 +28,14 @@ export function activityScreenStyles(t: AppTheme) {
     trace: {
       height: 140,
       borderWidth: 2,
-      borderColor: t.colors.primary,
-      borderRadius: 12,
+      borderColor: t.colors.border,
+      borderRadius: t.radii.lg,
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
       marginVertical: t.spacing.md,
+      backgroundColor: t.colors.readoutBg,
     },
     traceHelp: { color: t.colors.muted },
+    actions: { marginTop: t.spacing.sm },
   };
 }

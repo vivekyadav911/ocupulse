@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
+import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
-import { StemmMap } from '../../components/StemmMap';
-import { Card } from '../../components/Card';
+import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { StatReadout } from '../../components/StatReadout';
+import { StemmMap } from '../../components/StemmMap';
 import { useMicrophoneDb } from '../../hooks/useMicrophoneDb';
 import { useLocation } from '../../hooks/useLocation';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
@@ -96,31 +97,33 @@ export default function SoundScreen() {
   const pinColor = markerColorForPeakDb(previewDb);
 
   return (
-    <View style={styles.wrap}>
-      <Card>
-        <Text style={styles.title}>Sound Pollution Hunter</Text>
+    <ExperimentScreen>
+      <ActivityCard title="Sound Pollution Hunter" live={running}>
         <StatReadout
           label={running ? 'Live dB (approx)' : 'Peak dB (last sample)'}
           value={`${Math.round(previewDb)} dB`}
         />
         <StatReadout label="Avg dB" value={`${Math.round(avgDb)} dB`} />
         <Text style={styles.addr}>{locating ? 'Locating…' : address || 'No address yet'}</Text>
-        <Button
-          title={saving ? 'Saving…' : running ? 'Recording 30 s…' : 'Record 30 s sample'}
-          onPress={begin}
-          disabled={running || saving || recordingDisabled}
-        />
-        <Button
-          title="Stop & save"
-          variant="secondary"
-          onPress={() => void finishSample()}
-          disabled={!running || saving}
-        />
-        <Button
-          title="View sound map"
-          variant="secondary"
-          onPress={() => router.push('/results/sound-map')}
-        />
+        <View style={styles.actions}>
+          <Button
+            title={saving ? 'Saving…' : running ? 'Recording 30 s…' : 'Record 30 s sample'}
+            onPress={begin}
+            disabled={running || saving || recordingDisabled}
+          />
+          <Button
+            title="Stop & save"
+            variant="secondary"
+            onPress={() => void finishSample()}
+            disabled={!running || saving}
+          />
+          <Button
+            title="View sound map"
+            variant="accent"
+            icon="map-outline"
+            onPress={() => router.push('/results/sound-map')}
+          />
+        </View>
         {coords ? (
           <StemmMap
             style={styles.map}
@@ -141,7 +144,7 @@ export default function SoundScreen() {
             ]}
           />
         ) : null}
-      </Card>
-    </View>
+      </ActivityCard>
+    </ExperimentScreen>
   );
 }

@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
+import { ExperimentScreen } from '../../components/ExperimentScreen';
+import { FormField } from '../../components/FormField';
 import { StatReadout } from '../../components/StatReadout';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { gForceNoBounce } from '../../lib/calc/gforce';
@@ -37,32 +39,29 @@ export default function ParachuteScreen() {
   };
 
   return (
-    <View style={styles.wrap}>
-      <Card>
-        <Text style={styles.title}>Parachute Drop</Text>
-        <StatReadout label="Live accel magnitude (g rough)" value={`${magnitude.toFixed(2)}`} />
-        <StatReadout label="Calculated g-force (no bounce)" value={`${g.toFixed(2)} g`} />
-        <Text style={styles.label}>Impact speed (m/s)</Text>
-        <TextInput
+    <ExperimentScreen>
+      <ActivityCard title="Parachute Drop" live>
+        <StatReadout label="Live accel magnitude (g rough)" value={magnitude.toFixed(2)} />
+        <StatReadout label="Calculated g-force (no bounce)" value={`${g.toFixed(2)}g`} />
+        <FormField
+          label="Impact speed (m/s)"
           value={impact}
           onChangeText={setImpact}
           keyboardType="decimal-pad"
-          style={styles.input}
           accessibilityLabel="Impact speed in meters per second"
-          accessibilityHint="Enter the landing impact speed"
         />
-        <Text style={styles.label}>Contact time (s)</Text>
-        <TextInput
+        <FormField
+          label="Contact time (s)"
           value={contact}
           onChangeText={setContact}
           keyboardType="decimal-pad"
-          style={styles.input}
           accessibilityLabel="Contact time in seconds"
-          accessibilityHint="Enter how long the landing contact lasted"
         />
-        <Button title="Save result" onPress={save} />
-        <Button title="Home" variant="secondary" onPress={() => router.back()} />
-      </Card>
-    </View>
+        <View style={styles.actions}>
+          <Button title="Save result" onPress={save} />
+          <Button title="Home" variant="secondary" onPress={() => router.back()} />
+        </View>
+      </ActivityCard>
+    </ExperimentScreen>
   );
 }

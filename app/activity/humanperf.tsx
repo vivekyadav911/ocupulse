@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
+import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
+import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { StatReadout } from '../../components/StatReadout';
 import { useGyroscope } from '../../hooks/useGyroscope';
 import { smoothnessScore } from '../../lib/calc/smoothness';
@@ -29,15 +30,17 @@ export default function HumanPerfScreen() {
   };
 
   return (
-    <View style={styles.wrap}>
-      <Card>
-        <Text style={styles.title}>Human Performance Lab</Text>
+    <ExperimentScreen>
+      <ActivityCard title="Human Performance Lab" live>
         <StatReadout label="Smoothness score (lower jerk = higher)" value={`${score}`} />
         <Text style={styles.p}>
           Move your arm smoothly — gyroscope samples update continuously.
         </Text>
-        <Button title="Save result" onPress={save} />
-      </Card>
-    </View>
+        <View style={styles.actions}>
+          <Button title="Save result" onPress={save} />
+          <Button title="Home" variant="secondary" onPress={() => router.back()} />
+        </View>
+      </ActivityCard>
+    </ExperimentScreen>
   );
 }

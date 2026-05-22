@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { Layout, useReducedMotion } from 'react-native-reanimated';
+import { PageTitle } from '../../components/PageTitle';
+import { ScreenShell } from '../../components/ScreenShell';
 import type { LeaderboardFilter, LeaderRow } from '../../services/firestore';
 import { subscribeLeaderboard } from '../../services/firestore';
 import { useThemedStyles } from '../../theme/themedStyles';
@@ -23,8 +25,6 @@ export default function LeaderboardScreen() {
   const reduceMotion = useReducedMotion();
 
   const styles = useThemedStyles((t) => ({
-    wrap: { flex: 1, padding: t.spacing.md, backgroundColor: t.colors.surfaceAlt },
-    h1: { fontSize: 24, fontWeight: '800', color: t.colors.text },
     sub: { color: t.colors.muted, marginBottom: t.spacing.md },
     chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: t.spacing.md },
     chip: {
@@ -32,11 +32,12 @@ export default function LeaderboardScreen() {
       paddingVertical: t.spacing.xs,
       borderRadius: 20,
       borderWidth: 1,
-      borderColor: t.colors.muted,
+      borderColor: t.colors.border,
       marginRight: t.spacing.sm,
       marginBottom: t.spacing.sm,
+      backgroundColor: t.colors.surface,
     },
-    chipOn: { backgroundColor: t.colors.primary, borderColor: t.colors.primary },
+    chipOn: { backgroundColor: t.colors.primaryButton, borderColor: t.colors.primaryButton },
     chipText: { color: t.colors.text, fontWeight: '600' },
     chipTextOn: { color: t.colors.textInverse },
     row: {
@@ -44,15 +45,18 @@ export default function LeaderboardScreen() {
       alignItems: 'center',
       padding: t.spacing.md,
       backgroundColor: t.colors.surface,
-      borderRadius: 12,
+      borderRadius: t.radii.md,
       marginBottom: t.spacing.sm,
+      borderWidth: 1,
+      borderColor: t.colors.border,
     },
     rank: { width: 36, fontWeight: '800', color: t.colors.accent },
     team: { flex: 1, color: t.colors.text, fontWeight: '600' },
-    score: { fontWeight: '800', color: t.colors.primary },
+    score: { fontWeight: '800', color: t.colors.text },
     up: { marginLeft: t.spacing.xs, color: t.colors.success, fontWeight: '800' },
     meta: { fontSize: 12, color: t.colors.muted },
     empty: { marginTop: t.spacing.lg, color: t.colors.muted },
+    list: { flex: 1, minHeight: 200 },
   }));
 
   useEffect(() => {
@@ -74,8 +78,8 @@ export default function LeaderboardScreen() {
   }, [filter]);
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.h1}>Leaderboard</Text>
+    <ScreenShell scroll={false}>
+      <PageTitle eyebrow="Rankings" title="Board" />
       <Text style={styles.sub}>Live Firestore rankings — rows spring when ranks change</Text>
       <View style={styles.chips}>
         {FILTERS.map((f) => {
@@ -92,6 +96,7 @@ export default function LeaderboardScreen() {
         })}
       </View>
       <Animated.FlatList
+        style={styles.list}
         data={rows}
         keyExtractor={(item) => item.id}
         itemLayoutAnimation={reduceMotion ? undefined : springLayout}
@@ -112,6 +117,6 @@ export default function LeaderboardScreen() {
           <Text style={styles.empty}>No scores yet — complete an activity on any device.</Text>
         }
       />
-    </View>
+    </ScreenShell>
   );
 }

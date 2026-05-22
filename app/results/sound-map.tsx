@@ -1,6 +1,8 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, Text } from 'react-native';
+import { PageTitle } from '../../components/PageTitle';
+import { ScreenShell } from '../../components/ScreenShell';
 import { StemmMap } from '../../components/StemmMap';
 import { markerColorForPeakDb } from '../../lib/sound/markerColor';
 import type { SoundSample } from '../../lib/sound/types';
@@ -16,18 +18,26 @@ export default function SoundMapScreen() {
   const [localMarkers, setLocalMarkers] = useState<SoundSample[]>([]);
   const [remoteMarkers, setRemoteMarkers] = useState<SoundSample[]>([]);
   const styles = useThemedStyles((t) => ({
-    wrap: { flex: 1, backgroundColor: t.colors.surfaceAlt },
-    h1: { padding: t.spacing.md, fontSize: 20, fontWeight: '800' as const, color: t.colors.text },
-    legend: { paddingHorizontal: t.spacing.md, color: t.colors.muted, marginBottom: t.spacing.sm },
-    map: { height: 280, width: '100%' as const },
+    legend: { color: t.colors.muted, marginBottom: t.spacing.sm },
+    map: {
+      height: 280,
+      width: '100%' as const,
+      borderRadius: t.radii.lg,
+      overflow: 'hidden' as const,
+      marginBottom: t.spacing.md,
+      borderWidth: 1,
+      borderColor: t.colors.border,
+    },
     row: {
       padding: t.spacing.sm,
       paddingHorizontal: t.spacing.md,
       borderBottomWidth: 1,
-      borderColor: t.colors.muted,
+      borderColor: t.colors.border,
       color: t.colors.text,
+      backgroundColor: t.colors.surface,
     },
-    empty: { padding: t.spacing.md, color: t.colors.muted },
+    empty: { color: t.colors.muted, marginTop: t.spacing.md },
+    list: { flex: 1, minHeight: 120 },
   }));
 
   const reloadLocal = useCallback(async () => {
@@ -70,8 +80,8 @@ export default function SoundMapScreen() {
         };
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.h1}>Sound samples map</Text>
+    <ScreenShell scroll={false}>
+      <PageTitle eyebrow="Sound data" title="Results map" />
       <Text style={styles.legend}>
         Green under 60 dB · Amber 60–85 · Red over 85 (SQLite + Firestore)
       </Text>
@@ -88,6 +98,7 @@ export default function SoundMapScreen() {
         }))}
       />
       <FlatList
+        style={styles.list}
         data={markers}
         keyExtractor={(i) => i.id}
         ListEmptyComponent={
@@ -100,6 +111,6 @@ export default function SoundMapScreen() {
           </Text>
         )}
       />
-    </View>
+    </ScreenShell>
   );
 }

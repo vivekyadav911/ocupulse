@@ -8,23 +8,31 @@ export type StatReadoutProps = {
 };
 
 export function StatReadout({ label, value }: StatReadoutProps) {
-  const { colors, spacing, typography } = useAppTheme();
+  const { colors, spacing, radii, typography } = useAppTheme();
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        wrap: { marginVertical: spacing.sm },
+        wrap: {
+          marginVertical: spacing.xs,
+          backgroundColor: colors.readoutBg,
+          borderRadius: radii.md,
+          padding: spacing.md,
+        },
         value: {
           fontSize: typography.title,
-          fontWeight: '700',
-          color: colors.primary,
+          fontWeight: '800',
+          color: colors.text,
         },
         label: {
-          fontSize: typography.caption,
+          fontSize: typography.label,
           color: colors.muted,
           marginTop: spacing.xs,
+          fontWeight: '600',
+          letterSpacing: 0.6,
+          textTransform: 'uppercase',
         },
       }),
-    [colors, spacing, typography],
+    [colors, spacing, radii, typography],
   );
 
   return (

@@ -2,8 +2,9 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
+import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { StatReadout } from '../../components/StatReadout';
 import {
   averageReactionMs,
@@ -126,10 +127,8 @@ export default function ReactionScreen() {
   };
 
   return (
-    <View style={styles.wrap}>
-      <Card>
-        <Text style={styles.title}>Reaction Board</Text>
-
+    <ExperimentScreen>
+      <ActivityCard title="Reaction Board" live={armed || waiting}>
         {phase === 'react' ? (
           <>
             <Text style={styles.p}>
@@ -149,6 +148,7 @@ export default function ReactionScreen() {
               disabled={waiting || armed || recordingDisabled}
             />
             <Button title="Tap!" onPress={registerTap} disabled={!armed} />
+            <Button title="Home" variant="secondary" onPress={() => router.back()} />
           </>
         ) : (
           <>
@@ -184,9 +184,10 @@ export default function ReactionScreen() {
               onPress={() => void save()}
               disabled={tracePoints.length < 8 || saving}
             />
+            <Button title="Home" variant="secondary" onPress={() => router.back()} />
           </>
         )}
-      </Card>
-    </View>
+      </ActivityCard>
+    </ExperimentScreen>
   );
 }

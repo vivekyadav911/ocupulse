@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { ScreenShell } from '../../components/ScreenShell';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 const SPIKES = [
@@ -18,14 +19,13 @@ const SPIKES = [
 export default function SpikesIndex() {
   const router = useRouter();
   const styles = useThemedStyles((t) => ({
-    wrap: { flex: 1, padding: t.spacing.md },
     h1: { fontSize: 22, fontWeight: '800', marginBottom: t.spacing.md, color: t.colors.text },
   }));
 
   return (
-    <View style={styles.wrap}>
+    <ScreenShell>
       <Text style={styles.h1}>Sprint 2 capability spikes</Text>
-      <Card>
+      <Card bordered>
         {SPIKES.map((s) => (
           <Button
             key={s}
@@ -35,6 +35,6 @@ export default function SpikesIndex() {
           />
         ))}
       </Card>
-    </View>
+    </ScreenShell>
   );
 }

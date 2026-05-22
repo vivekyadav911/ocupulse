@@ -1,13 +1,25 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { PageTitle } from '../../components/PageTitle';
+import { ScreenShell } from '../../components/ScreenShell';
 import { showResultsInterstitialIfAllowed } from '../../lib/admobGate';
-import { colors, spacing } from '../../theme/tokens';
+import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function ResultsDetailScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const router = useRouter();
+  const styles = useThemedStyles((t) => ({
+    id: {
+      marginVertical: t.spacing.md,
+      fontFamily: 'monospace',
+      color: t.colors.muted,
+      fontSize: t.typography.caption,
+    },
+    p: { color: t.colors.muted, marginBottom: t.spacing.lg, lineHeight: 22 },
+    card: { marginTop: t.spacing.sm },
+  }));
 
   const done = async () => {
     await showResultsInterstitialIfAllowed();
@@ -15,9 +27,9 @@ export default function ResultsDetailScreen() {
   };
 
   return (
-    <View style={styles.wrap}>
-      <Card>
-        <Text style={styles.title}>Session saved</Text>
+    <ScreenShell>
+      <PageTitle eyebrow="Saved" title="Session result" />
+      <Card bordered style={styles.card}>
         <Text style={styles.id}>ID: {sessionId}</Text>
         <Text style={styles.p}>
           Result queued in SQLite outbox and syncing to Firestore when online.
@@ -25,17 +37,12 @@ export default function ResultsDetailScreen() {
         <Button title="Done (may show ad for Year 9+)" onPress={done} />
         <Button
           title="Leaderboard"
-          variant="secondary"
+          variant="accent"
+          icon="bar-chart-outline"
           onPress={() => router.replace('/(tabs)/leaderboard')}
         />
+        <Button title="Home" variant="secondary" onPress={() => router.replace('/(tabs)')} />
       </Card>
-    </View>
+    </ScreenShell>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: spacing.md, backgroundColor: colors.surfaceAlt },
-  title: { fontSize: 24, fontWeight: '800', color: colors.primary },
-  id: { marginVertical: spacing.md, fontFamily: 'monospace', color: colors.muted },
-  p: { color: colors.text, marginBottom: spacing.lg },
-});

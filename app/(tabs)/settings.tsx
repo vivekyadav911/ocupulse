@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { PageTitle } from '../../components/PageTitle';
+import { ScreenShell } from '../../components/ScreenShell';
 import { signOutUser } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
 import { useSessionStore, type GradeLevel } from '../../store/sessionStore';
@@ -16,10 +18,16 @@ export default function SettingsScreen() {
   const { mode, toggle } = useThemeStore();
   const { teamName, gradeLevel, setTeam } = useSessionStore();
   const styles = useThemedStyles((t) => ({
-    wrap: { flex: 1, padding: t.spacing.md },
-    h1: { fontSize: 22, fontWeight: '800', marginBottom: t.spacing.md, color: t.colors.text },
-    label: { marginTop: t.spacing.md, fontWeight: '700', color: t.colors.text },
-    now: { color: t.colors.muted, marginBottom: t.spacing.sm },
+    label: {
+      marginTop: t.spacing.md,
+      fontSize: t.typography.label,
+      fontWeight: '700',
+      color: t.colors.muted,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    now: { color: t.colors.text, marginBottom: t.spacing.sm, fontWeight: '600' },
+    card: { marginTop: t.spacing.sm },
   }));
 
   const pickGrade = (g: GradeLevel) => {
@@ -37,13 +45,14 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.wrap}>
-      <Card>
-        <Text style={styles.h1}>Settings</Text>
-        <Text style={styles.label}>Theme: {mode}</Text>
+    <ScreenShell>
+      <PageTitle title="Settings" />
+      <Card bordered style={styles.card}>
+        <Text style={styles.label}>Appearance</Text>
+        <Text style={styles.now}>Theme: {mode}</Text>
         <Button title="Toggle dark / light" variant="secondary" onPress={toggle} />
         <Text style={styles.label}>Grade / cohort (AdMob kid-safe gate)</Text>
-        <Text style={styles.now}>Current: {gradeLevel}</Text>
+        <Text style={styles.now}>{gradeLevel}</Text>
         {GRADES.map((g) => (
           <Button key={g} title={g} variant="secondary" onPress={() => pickGrade(g)} />
         ))}
@@ -51,6 +60,6 @@ export default function SettingsScreen() {
         <Text style={styles.now}>{teamName}</Text>
         <Button title="Sign out" variant="danger" onPress={logout} />
       </Card>
-    </View>
+    </ScreenShell>
   );
 }

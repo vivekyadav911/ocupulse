@@ -22,8 +22,8 @@ export async function scheduleStreakReminder(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: 'STEMM Lab',
-      body: 'Keep your science streak — open STEMM Lab today!',
+      title: 'Ocupulse',
+      body: 'Keep your science streak — open Ocupulse today!',
     },
     trigger: {
       type: SchedulableTriggerInputTypes.DAILY,

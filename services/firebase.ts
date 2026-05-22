@@ -26,7 +26,7 @@ export function getFirebaseApp(): FirebaseApp | null {
   if (app) return app;
   const cfg = readExtra();
   if (!cfg.apiKey || !cfg.projectId) {
-    console.warn('STEMM Lab: Firebase extra keys missing — set .env / app.config.ts.');
+    console.warn('Ocupulse: Firebase extra keys missing — set .env / app.config.ts.');
     return null;
   }
   app = getApps().length ? getApps()[0]! : initializeApp(cfg);

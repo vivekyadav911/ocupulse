@@ -2,9 +2,9 @@ import 'dotenv/config';
 import type { ExpoConfig } from 'expo/config';
 
 export default (): ExpoConfig => ({
-  name: 'STEMM Lab',
-  slug: 'stemm-lab',
-  scheme: 'stemmlab',
+  name: 'Ocupulse',
+  slug: 'ocupulse',
+  scheme: 'ocupulse',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
@@ -39,8 +39,8 @@ export default (): ExpoConfig => ({
       'expo-camera',
       {
         cameraPermission:
-          'STEMM Lab uses the camera for parachute slow-motion and hand-fan tracking experiments.',
-        microphonePermission: 'STEMM Lab records audio with video clips during camera experiments.',
+          'Ocupulse uses the camera for parachute slow-motion and hand-fan tracking experiments.',
+        microphonePermission: 'Ocupulse records audio with video clips during camera experiments.',
         recordAudioAndroid: true,
       },
     ],
@@ -48,7 +48,7 @@ export default (): ExpoConfig => ({
       'expo-location',
       {
         locationWhenInUsePermission:
-          'STEMM Lab uses your location to place sound samples and show your suburb on the map.',
+          'Ocupulse uses your location to place sound samples and show your suburb on the map.',
       },
     ],
     [

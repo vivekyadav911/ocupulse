@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
+import { ExperimentScreen } from '../../components/ExperimentScreen';
+import { FormField } from '../../components/FormField';
 import { bendAngleFromShiftPixels } from '../../lib/calc/bendAngle';
 import { writeSessionOptimistic } from '../../services/firestore';
 import { useSessionStore } from '../../store/sessionStore';
@@ -28,25 +30,25 @@ export default function HandFanScreen() {
   };
 
   return (
-    <View style={styles.wrap}>
-      <Card>
-        <Text style={styles.title}>Hand Fan</Text>
+    <ExperimentScreen>
+      <ActivityCard title="Hand Fan">
         <Text style={styles.p}>
           MVP: enter centroid shift (px) from camera tracking, or replace with computer vision
           pipeline later.
         </Text>
-        <Text style={styles.label}>Shift (px)</Text>
-        <TextInput
+        <FormField
+          label="Shift (px)"
           value={shift}
           onChangeText={setShift}
           keyboardType="decimal-pad"
-          style={styles.input}
           accessibilityLabel="Centroid shift in pixels"
-          accessibilityHint="Enter the horizontal shift measured from camera tracking"
         />
         <Text style={styles.meta}>Estimated angle: {angle}°</Text>
-        <Button title="Save result" onPress={save} />
-      </Card>
-    </View>
+        <View style={styles.actions}>
+          <Button title="Save result" onPress={save} />
+          <Button title="Home" variant="secondary" onPress={() => router.back()} />
+        </View>
+      </ActivityCard>
+    </ExperimentScreen>
   );
 }

@@ -14,7 +14,7 @@ export default function SystemSpike() {
   }, []);
   const schedule = async () => {
     await Notifications.scheduleNotificationAsync({
-      content: { title: 'STEMM Lab', body: 'Test notification (5 s)' },
+      content: { title: 'Ocupulse', body: 'Test notification (5 s)' },
       trigger: {
         type: SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds: 5,

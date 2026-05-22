@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
 import { Text, View } from 'react-native';
@@ -16,8 +17,10 @@ function BatteryBanner() {
   if (!warn) return null;
 
   return (
-    <View style={[styles.banner, { backgroundColor: critical ? colors.danger : colors.accent }]}>
-      <Text style={[styles.bannerText, { color: critical ? colors.textInverse : colors.primary }]}>
+    <View
+      style={[styles.banner, { backgroundColor: critical ? colors.danger : colors.accentMuted }]}
+    >
+      <Text style={[styles.bannerText, { color: critical ? colors.textInverse : colors.text }]}>
         {critical ? 'Charge to record' : 'Battery low — recordings may stop'}
       </Text>
     </View>
@@ -30,7 +33,7 @@ export default function TabsLayout() {
 
   useEffect(() => {
     if (__DEV__ && recordingDisabled) {
-      console.log('[STEMM Lab] Recording disabled — battery below 10%');
+      console.log('[Ocupulse] Recording disabled — battery below 10%');
     }
   }, [recordingDisabled]);
 
@@ -42,12 +45,39 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarActiveTintColor: colors.accent,
           tabBarInactiveTintColor: colors.muted,
-          tabBarStyle: { backgroundColor: colors.surface },
+          tabBarStyle: {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+            borderTopWidth: 1,
+          },
+          tabBarLabelStyle: { fontWeight: '600', fontSize: 12 },
         }}
       >
-        <Tabs.Screen name="index" options={{ title: 'Home' }} />
-        <Tabs.Screen name="leaderboard" options={{ title: 'Board' }} />
-        <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="leaderboard"
+          options={{
+            title: 'Board',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="bar-chart" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="settings-outline" size={size} color={color} />
+            ),
+          }}
+        />
       </Tabs>
     </View>
   );

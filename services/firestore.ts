@@ -74,7 +74,7 @@ export async function syncOutbox(): Promise<void> {
       await flushOutboxRow(r.path, payload);
       done.push(r.id);
     } catch (e) {
-      console.warn('[STEMM Lab] syncOutbox failed for row', r.id, e);
+      console.warn('[Ocupulse] syncOutbox failed for row', r.id, e);
     }
   }
   await deleteOutboxIds(done);
