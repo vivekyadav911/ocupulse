@@ -21,18 +21,26 @@ describe('reactionScoreFromAvgMs', () => {
 });
 
 describe('tracePathMse', () => {
-  it('is near zero on the ideal path', () => {
+  it('is near zero on the ideal path (screen coordinates)', () => {
     const ideal = Array.from({ length: 20 }, (_, i) => {
       const x = i / 19;
-      return { x, y: idealTraceY(x) };
+      return { x, y: 1 - idealTraceY(x) };
     });
     expect(tracePathMse(ideal)).toBeLessThan(0.001);
   });
 
   it('increases with deviation', () => {
     const off = [{ x: 0.5, y: 0.9 }];
-    const on = [{ x: 0.5, y: idealTraceY(0.5) }];
+    const on = [{ x: 0.5, y: 1 - idealTraceY(0.5) }];
     expect(tracePathMse(off)).toBeGreaterThan(tracePathMse(on));
+  });
+
+  it('scores a perfect screen trace highly', () => {
+    const screenTrace = Array.from({ length: 20 }, (_, i) => {
+      const x = i / 19;
+      return { x, y: 1 - idealTraceY(x) };
+    });
+    expect(traceScoreFromMse(tracePathMse(screenTrace))).toBeGreaterThan(90);
   });
 });
 

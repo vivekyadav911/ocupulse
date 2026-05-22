@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { StemmMap } from '../../components/StemmMap';
 import { Card } from '../../components/Card';
@@ -74,6 +74,8 @@ export default function SoundScreen() {
         },
       });
       router.push(`/results/${sessionId}`);
+    } catch (e) {
+      Alert.alert('Save failed', e instanceof Error ? e.message : 'Could not save sound sample.');
     } finally {
       setSaving(false);
       finishing.current = false;

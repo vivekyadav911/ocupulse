@@ -23,13 +23,13 @@ export function idealTraceY(x: number): number {
   return 0.5 + 0.35 * Math.sin(2 * Math.PI * t);
 }
 
-/** Mean squared error vs the ideal sine path (normalized coordinates). */
+/** Mean squared error vs the ideal sine path (normalized screen coordinates). */
 export function tracePathMse(userPoints: readonly Point2[]): number {
   if (!userPoints.length) return 1;
   let sum = 0;
   for (const p of userPoints) {
-    const ideal = idealTraceY(p.x);
-    sum += (p.y - ideal) ** 2;
+    const idealScreenY = 1 - idealTraceY(p.x);
+    sum += (p.y - idealScreenY) ** 2;
   }
   return sum / userPoints.length;
 }
