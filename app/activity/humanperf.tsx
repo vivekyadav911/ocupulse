@@ -6,23 +6,20 @@ import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { StatReadout } from '../../components/StatReadout';
 import { useGyroscope } from '../../hooks/useGyroscope';
 import { smoothnessScore } from '../../lib/calc/smoothness';
-import { writeSessionOptimistic } from '../../services/firestore';
-import { useSessionStore } from '../../store/sessionStore';
+import { saveActivityResult } from '../../services/activityWrite';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function HumanPerfScreen() {
   const router = useRouter();
-  const team = useSessionStore((s) => s.teamName);
   const styles = useThemedStyles(activityScreenStyles);
   const { series, hz } = useGyroscope();
   const dt = hz > 0 ? 1 / hz : 1 / 60;
   const score = smoothnessScore(series, dt);
 
   const save = async () => {
-    const sessionId = await writeSessionOptimistic({
+    const sessionId = await saveActivityResult({
       activityType: 'humanperf',
-      teamName: team,
       score,
       payload: { sampleCount: series.length },
     });

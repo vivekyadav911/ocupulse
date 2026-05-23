@@ -2,6 +2,9 @@
   "plugins": {
     "azure": {
       "enabled": true
+    },
+    "firebase": {
+      "enabled": true
     }
   }
 }

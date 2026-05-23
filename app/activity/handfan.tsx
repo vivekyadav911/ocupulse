@@ -6,23 +6,20 @@ import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { FormField } from '../../components/FormField';
 import { bendAngleFromShiftPixels } from '../../lib/calc/bendAngle';
-import { writeSessionOptimistic } from '../../services/firestore';
-import { useSessionStore } from '../../store/sessionStore';
+import { saveActivityResult } from '../../services/activityWrite';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function HandFanScreen() {
   const router = useRouter();
-  const team = useSessionStore((s) => s.teamName);
   const styles = useThemedStyles(activityScreenStyles);
   const [shift, setShift] = useState('12');
 
   const angle = bendAngleFromShiftPixels(parseFloat(shift) || 0);
 
   const save = async () => {
-    const sessionId = await writeSessionOptimistic({
+    const sessionId = await saveActivityResult({
       activityType: 'handfan',
-      teamName: team,
       score: Math.min(100, angle),
       payload: { bendAngleDeg: angle, shiftPx: parseFloat(shift) },
     });

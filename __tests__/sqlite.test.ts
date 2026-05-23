@@ -82,19 +82,32 @@ describe('sqlite DAOs', () => {
   });
 
   it('round-trips teamsDao', async () => {
-    const row = { id: 'team-1', name: 'Alpha' };
+    const row = {
+      id: 'team-1',
+      name: 'Alpha',
+      teacherId: null,
+      schoolId: null,
+      synced: 0 as const,
+    };
     await teamsDao.insert(row);
     expect(await teamsDao.findById('team-1')).toEqual(row);
-    const updated = { ...row, name: 'Beta' };
+    const updated = { ...row, name: 'Beta', synced: 1 as const };
     await teamsDao.update(updated);
     expect(await teamsDao.findAll()).toEqual([updated]);
   });
 
   it('round-trips studentsDao', async () => {
-    const row = { id: 'stu-1', firstName: 'Ada', teamId: 'team-1' };
+    const row = {
+      id: 'stu-1',
+      firstName: 'Ada',
+      teamId: 'team-1',
+      uid: null,
+      deviceId: null,
+      synced: 0 as const,
+    };
     await studentsDao.insert(row);
     expect(await studentsDao.findById('stu-1')).toEqual(row);
-    const updated = { ...row, firstName: 'Grace', teamId: null };
+    const updated = { ...row, firstName: 'Grace', teamId: null, synced: 1 as const };
     await studentsDao.update(updated);
     expect(await studentsDao.findAll()).toEqual([updated]);
   });
@@ -105,6 +118,9 @@ describe('sqlite DAOs', () => {
       teamId: 'team-1',
       activityType: 'parachute',
       startTime: 1_700_000_000_000,
+      studentId: null,
+      createdBy: null,
+      synced: 0 as const,
     };
     await sessionsDao.insert(row);
     expect(await sessionsDao.findById('sess-1')).toEqual(row);
@@ -121,6 +137,10 @@ describe('sqlite DAOs', () => {
       score: 88.5,
       dataJson: '{"g":2}',
       synced: 0 as const,
+      teamId: null,
+      studentId: null,
+      userId: null,
+      mediaUrlsJson: null,
     };
     await resultsDao.insert(row);
     expect(await resultsDao.findById('res-1')).toEqual(row);

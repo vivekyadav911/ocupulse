@@ -1,8 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import { useBattery } from '../../hooks/useBattery';
+import { isFirebaseConfigured } from '../../services/firebase';
+import { useAuthStore } from '../../store/authStore';
+import { useSessionStore } from '../../store/sessionStore';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
 
@@ -27,7 +30,7 @@ function BatteryBanner() {
   );
 }
 
-export default function TabsLayout() {
+function TabsLayoutInner() {
   const { colors } = useAppTheme();
   const { recordingDisabled } = useBattery();
 
@@ -81,4 +84,25 @@ export default function TabsLayout() {
       </Tabs>
     </View>
   );
+}
+
+export default function TabsLayout() {
+  const user = useAuthStore((s) => s.user);
+  const quickJoin = useAuthStore((s) => s.quickJoinActive);
+  const profileReady = useSessionStore((s) => s.profileReady);
+  const firebaseReady = isFirebaseConfigured();
+
+  if (user === undefined) return null;
+
+  if (!firebaseReady && quickJoin) {
+    return <TabsLayoutInner />;
+  }
+  if (!user) {
+    return <Redirect href="/(auth)/login" />;
+  }
+  if (user.isAnonymous && !profileReady) {
+    return <Redirect href="/(auth)/student-setup" />;
+  }
+
+  return <TabsLayoutInner />;
 }

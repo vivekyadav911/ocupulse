@@ -1,11 +1,13 @@
 import type * as SQLite from 'expo-sqlite';
 import { MIGRATIONS } from './migrations';
+import { ensureMediaAssetsTable, execMigrationSql } from './migrations/run';
 import { createSqliteExports } from './sqlite.shared';
 import { WebMemoryDatabase, resetWebMemoryTables } from './webMemoryDb';
 
 export type {
   Dao,
   ExperimentResult,
+  MediaAsset,
   OutboxInsert,
   OutboxRow,
   Session,
@@ -49,12 +51,13 @@ export async function runMigrations(): Promise<void> {
       continue;
     }
 
-    await mem.execAsync(migration.sql);
+    await execMigrationSql(mem as unknown as import('expo-sqlite').SQLiteDatabase, migration.sql);
     await mem.runAsync('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)', [
       migration.version,
       Date.now(),
     ]);
   }
+  await ensureMediaAssetsTable(mem as unknown as import('expo-sqlite').SQLiteDatabase);
 }
 
 const api = createSqliteExports(() => getDb());
@@ -64,6 +67,7 @@ export const {
   studentsDao,
   sessionsDao,
   resultsDao,
+  mediaAssetsDao,
   outboxDao,
   insertOutbox,
   getAllOutbox,

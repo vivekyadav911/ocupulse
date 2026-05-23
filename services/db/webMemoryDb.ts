@@ -8,6 +8,7 @@ const tables: Record<string, Row[]> = {
   sessions: [],
   experiment_results: [],
   outbox: [],
+  media_assets: [],
 };
 
 let outboxSeq = 1;
@@ -44,6 +45,7 @@ export class WebMemoryDatabase {
       if (table === 'outbox' && row.id == null) {
         row.id = outboxSeq++;
       }
+      if (!tables[table]) tables[table] = [];
       tables[table].push(row);
       return;
     }
@@ -77,7 +79,7 @@ export class WebMemoryDatabase {
 
   async getAllAsync<T extends Row>(sql: string, params: unknown[] = []): Promise<T[]> {
     const table = tableNameFromSql(sql);
-    if (!table) return [];
+    if (!table || !tables[table]) return [];
     if (sql.includes('WHERE')) {
       const idCol = sql.match(/WHERE\s+(\w+)\s*=\s*\?/i)?.[1] ?? 'id';
       return tables[table].filter((r) => r[idCol] === params[0]) as T[];

@@ -4,7 +4,11 @@ import { AppHeader } from './AppHeader';
 import { PageTitle } from './PageTitle';
 import { useAppTheme } from '../theme/useAppTheme';
 
-export function ExperimentScreen({ children }: PropsWithChildren) {
+export function ExperimentScreen({
+  children,
+  title = 'Experiment',
+  eyebrow = 'Active session',
+}: PropsWithChildren<{ title?: string; eyebrow?: string }>) {
   const { colors, spacing } = useAppTheme();
 
   return (
@@ -16,7 +20,7 @@ export function ExperimentScreen({ children }: PropsWithChildren) {
           paddingBottom: spacing.xl,
         }}
       >
-        <PageTitle eyebrow="Active session" title="Experiment" />
+        <PageTitle eyebrow={eyebrow} title={title} />
         {children}
       </ScrollView>
     </View>

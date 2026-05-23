@@ -9,8 +9,7 @@ import { StatReadout } from '../../components/StatReadout';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
 import { magnitudeRms, wobbleScoreFromRms } from '../../lib/calc/wobble';
-import { writeSessionOptimistic } from '../../services/firestore';
-import { useSessionStore } from '../../store/sessionStore';
+import { saveActivityResult } from '../../services/activityWrite';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useThemedStyles } from '../../theme/themedStyles';
 
@@ -19,7 +18,6 @@ const HAPTIC_INTERVAL_MS = 40;
 
 export default function EarthquakeScreen() {
   const router = useRouter();
-  const team = useSessionStore((s) => s.teamName);
   const styles = useThemedStyles(activityScreenStyles);
   const { recordingDisabled } = useRecordingGate();
   const { magnitude } = useAccelerometer();
@@ -86,9 +84,8 @@ export default function EarthquakeScreen() {
   const save = async () => {
     setSaving(true);
     try {
-      const sessionId = await writeSessionOptimistic({
+      const sessionId = await saveActivityResult({
         activityType: 'earthquake',
-        teamName: team,
         score,
         payload: { rmsG, sampleCount, hapticCount, shakeMs: SHAKE_MS },
       });

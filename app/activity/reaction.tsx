@@ -16,8 +16,7 @@ import {
   type Point2,
 } from '../../lib/calc/reactionStats';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
-import { writeSessionOptimistic } from '../../services/firestore';
-import { useSessionStore } from '../../store/sessionStore';
+import { saveActivityResult } from '../../services/activityWrite';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
@@ -26,7 +25,6 @@ const REACTION_ROUNDS = 5;
 
 export default function ReactionScreen() {
   const router = useRouter();
-  const team = useSessionStore((s) => s.teamName);
   const { recordingDisabled } = useRecordingGate();
   const { colors } = useAppTheme();
   const styles = useThemedStyles(activityScreenStyles);
@@ -108,9 +106,8 @@ export default function ReactionScreen() {
     if (times.length < REACTION_ROUNDS || tracePoints.length < 8) return;
     setSaving(true);
     try {
-      const sessionId = await writeSessionOptimistic({
+      const sessionId = await saveActivityResult({
         activityType: 'reaction',
-        teamName: team,
         score: combo,
         payload: {
           avgReactionMs: avgReact,

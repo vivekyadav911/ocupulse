@@ -1,6 +1,6 @@
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
-import { syncOutbox } from './firestore';
+import { syncAll } from './sync';
 
 export const BG_SYNC_OUTBOX = 'stemm-lab-bg-sync-outbox';
 
@@ -8,7 +8,7 @@ const MIN_INTERVAL_SEC = 15 * 60;
 
 TaskManager.defineTask(BG_SYNC_OUTBOX, async () => {
   try {
-    await syncOutbox();
+    await syncAll();
     return BackgroundFetch.BackgroundFetchResult.NewData;
   } catch (e) {
     console.warn('[Ocupulse] BG_SYNC_OUTBOX failed:', e);
@@ -19,7 +19,7 @@ TaskManager.defineTask(BG_SYNC_OUTBOX, async () => {
 /** Run outbox drain immediately (foreground / dev testing). */
 export async function runBackgroundOutboxSyncNow(): Promise<BackgroundFetch.BackgroundFetchResult> {
   try {
-    await syncOutbox();
+    await syncAll();
     return BackgroundFetch.BackgroundFetchResult.NewData;
   } catch {
     return BackgroundFetch.BackgroundFetchResult.Failed;

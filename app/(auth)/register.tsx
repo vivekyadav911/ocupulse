@@ -7,11 +7,13 @@ import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
 import { registerEmail } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
+import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const setQuickJoin = useAuthStore((s) => s.setQuickJoinActive);
+  const setTeam = useSessionStore((s) => s.setTeam);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -46,6 +48,7 @@ export default function RegisterScreen() {
     try {
       setQuickJoin(false);
       await registerEmail(email, password);
+      setTeam({ profileReady: true });
       router.replace('/(tabs)');
     } catch (e) {
       Alert.alert('Register', e instanceof Error ? e.message : 'Could not register');

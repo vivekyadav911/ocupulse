@@ -5,21 +5,18 @@ import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { StatReadout } from '../../components/StatReadout';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
-import { writeSessionOptimistic } from '../../services/firestore';
-import { useSessionStore } from '../../store/sessionStore';
+import { saveActivityResult } from '../../services/activityWrite';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function BreathingScreen() {
   const router = useRouter();
-  const team = useSessionStore((s) => s.teamName);
   const { magnitude } = useAccelerometer();
   const styles = useThemedStyles(activityScreenStyles);
 
   const save = async () => {
-    const sessionId = await writeSessionOptimistic({
+    const sessionId = await saveActivityResult({
       activityType: 'breathing',
-      teamName: team,
       score: Math.min(100, Math.round(magnitude * 20)),
       payload: { chestMag: magnitude },
     });

@@ -13,6 +13,7 @@
     "test": "jest",
     "a11y": "node scripts/lint-a11y.cjs",
     "secret-scan": "node scripts/secret-scan.cjs",
+    "firebase:deploy-rules": "npx -y firebase-tools@latest deploy --only firestore:rules",
     "prepare": "husky || true"
   },
   "lint-staged": {
@@ -30,6 +31,7 @@
     "expo-battery": "~10.0.8",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",
+    "expo-file-system": "~19.0.22",
     "expo-haptics": "~15.0.8",
     "expo-linking": "~8.0.12",
     "expo-location": "~19.0.8",

@@ -16,8 +16,7 @@ import {
   pollutionTierLabel,
   type PollutionTier,
 } from '../../lib/calc/soundLevel';
-import { writeSessionOptimistic } from '../../services/firestore';
-import { useSessionStore } from '../../store/sessionStore';
+import { saveActivityResult } from '../../services/activityWrite';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useThemedStyles } from '../../theme/themedStyles';
 
@@ -31,7 +30,6 @@ function fmtDb(n: number | null): string {
 
 export default function SoundScreen() {
   const router = useRouter();
-  const team = useSessionStore((s) => s.teamName);
   const styles = useThemedStyles((t) => ({
     ...activityScreenStyles(t),
     tierRow: {
@@ -128,7 +126,7 @@ export default function SoundScreen() {
     };
   };
 
-  const previewPeak = running ? mic.peakDb : mic.peakDb;
+  const previewPeak = running ? mic.liveDb : mic.peakDb;
   const tierPeak = previewPeak ?? 0;
   const tier = pollutionTierForPeakDb(tierPeak);
   const tierStyle = tierStyles(tier);
@@ -157,9 +155,8 @@ export default function SoundScreen() {
       const resolvedAddress = place?.address ?? address;
       const pollutionTier = pollutionTierForPeakDb(levels.peakDb);
 
-      const sessionId = await writeSessionOptimistic({
+      const sessionId = await saveActivityResult({
         activityType: 'sound',
-        teamName: team,
         score: Math.min(100, levels.peakDb),
         payload: {
           peakDb: levels.peakDb,

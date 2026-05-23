@@ -57,4 +57,37 @@ CREATE INDEX IF NOT EXISTS idx_results_synced ON experiment_results(synced);
 CREATE INDEX IF NOT EXISTS idx_outbox_created ON outbox(created_at);
 `,
   },
+  {
+    version: '003_firebase_sync',
+    sql: `
+ALTER TABLE teams ADD COLUMN teacher_id TEXT;
+ALTER TABLE teams ADD COLUMN school_id TEXT;
+ALTER TABLE teams ADD COLUMN synced INTEGER DEFAULT 0;
+
+ALTER TABLE students ADD COLUMN uid TEXT;
+ALTER TABLE students ADD COLUMN device_id TEXT;
+ALTER TABLE students ADD COLUMN synced INTEGER DEFAULT 0;
+
+ALTER TABLE sessions ADD COLUMN student_id TEXT;
+ALTER TABLE sessions ADD COLUMN created_by TEXT;
+ALTER TABLE sessions ADD COLUMN synced INTEGER DEFAULT 0;
+
+ALTER TABLE experiment_results ADD COLUMN team_id TEXT;
+ALTER TABLE experiment_results ADD COLUMN student_id TEXT;
+ALTER TABLE experiment_results ADD COLUMN user_id TEXT;
+ALTER TABLE experiment_results ADD COLUMN media_urls_json TEXT;
+
+CREATE TABLE IF NOT EXISTS media_assets (
+  id TEXT PRIMARY KEY,
+  session_id TEXT,
+  local_uri TEXT,
+  remote_url TEXT,
+  mime_type TEXT,
+  synced INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_session ON media_assets(session_id);
+CREATE INDEX IF NOT EXISTS idx_media_synced ON media_assets(synced);
+`,
+  },
 ];

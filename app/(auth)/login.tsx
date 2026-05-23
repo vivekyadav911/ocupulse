@@ -6,7 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
-import { signInEmail } from '../../services/auth';
+import { signInAnonymousStudent, signInEmail } from '../../services/auth';
+import { isFirebaseConfigured } from '../../services/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
@@ -16,9 +17,10 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const setQuickJoin = useAuthStore((s) => s.setQuickJoinActive);
   const { colors } = useAppTheme();
-  const [email, setEmail] = useState('teacher@school.edu');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const firebaseReady = isFirebaseConfigured();
   const styles = useThemedStyles((t) => ({
     screen: {
       flex: 1,
@@ -37,17 +39,41 @@ export default function LoginScreen() {
       color: t.colors.text,
       marginBottom: t.spacing.lg,
     },
-    h1: {
-      fontSize: 26,
+    statusRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      gap: t.spacing.xs,
+      marginBottom: t.spacing.md,
+    },
+    statusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    statusText: {
+      fontSize: t.typography.caption,
+      fontWeight: '700',
+      color: t.colors.muted,
+    },
+    sectionTitle: {
+      fontSize: t.typography.label,
       fontWeight: '800',
-      color: t.colors.text,
+      color: t.colors.muted,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase' as const,
       marginBottom: t.spacing.sm,
     },
-    sub: {
-      marginBottom: t.spacing.md,
+    sectionSub: {
+      fontSize: t.typography.caption,
       color: t.colors.muted,
-      lineHeight: 22,
-      fontSize: t.typography.body,
+      lineHeight: 18,
+      marginBottom: t.spacing.sm,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: t.colors.border,
+      marginVertical: t.spacing.md,
     },
     footer: {
       flexDirection: 'row' as const,
@@ -62,12 +88,33 @@ export default function LoginScreen() {
     },
   }));
 
-  const quickJoin = () => {
-    setQuickJoin(true);
-    router.replace('/(tabs)');
+  const quickJoin = async () => {
+    if (!firebaseReady) {
+      setQuickJoin(true);
+      router.replace('/(tabs)');
+      return;
+    }
+    setBusy(true);
+    try {
+      setQuickJoin(false);
+      await signInAnonymousStudent();
+      router.replace('/(auth)/student-setup');
+    } catch (e) {
+      Alert.alert('Quick join', e instanceof Error ? e.message : 'Anonymous sign-in failed');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const teacherLogin = async () => {
+    if (!firebaseReady) {
+      Alert.alert('Firebase', 'Add Firebase keys to .env and restart Expo.');
+      return;
+    }
+    if (!email.trim() || !password) {
+      Alert.alert('Login', 'Enter email and password.');
+      return;
+    }
     setBusy(true);
     try {
       useAuthStore.getState().setQuickJoinActive(false);
@@ -84,18 +131,30 @@ export default function LoginScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.brand}>Ocupulse</Text>
-        <Card bordered>
-          <Text style={styles.h1}>Ocupulse</Text>
-          <Text style={styles.sub}>
-            Quick join opens the app locally for testing — no Firebase account. Use teacher login
-            when auth is enabled.
-          </Text>
-          <Button
-            title="Quick join (local testing)"
-            icon="flash"
-            onPress={quickJoin}
-            disabled={busy}
+
+        <View style={styles.statusRow}>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: firebaseReady ? colors.accent : colors.danger },
+            ]}
           />
+          <Text style={styles.statusText}>
+            {firebaseReady ? 'Firebase connected' : 'Firebase offline — local mode only'}
+          </Text>
+        </View>
+
+        <Card bordered>
+          <Text style={styles.sectionTitle}>Students</Text>
+          <Text style={styles.sectionSub}>
+            Quick join signs you in anonymously, then asks for your name and team.
+          </Text>
+          <Button title="Quick join as student" icon="flash" onPress={quickJoin} disabled={busy} />
+
+          <View style={styles.divider} />
+
+          <Text style={styles.sectionTitle}>Teachers</Text>
+          <Text style={styles.sectionSub}>Use your school email and password.</Text>
           <FormField
             label="Email"
             value={email}
@@ -104,7 +163,6 @@ export default function LoginScreen() {
             keyboardType="email-address"
             placeholder="teacher@school.edu"
             accessibilityLabel="Teacher email"
-            accessibilityHint="Enter your school email address"
           />
           <FormField
             label="Password"
@@ -113,10 +171,9 @@ export default function LoginScreen() {
             secureTextEntry
             placeholder="••••••••"
             accessibilityLabel="Password"
-            accessibilityHint="Enter your account password"
           />
           <Button
-            title="Teacher login (email)"
+            title="Teacher login"
             variant="secondary"
             onPress={teacherLogin}
             disabled={busy}
@@ -127,12 +184,7 @@ export default function LoginScreen() {
             onPress={() => router.push('/(auth)/register')}
             disabled={busy}
           />
-          <Button
-            title="Onboarding tips"
-            variant="secondary"
-            onPress={() => router.push('/(auth)/onboarding')}
-            disabled={busy}
-          />
+
           <View style={styles.footer}>
             <Ionicons name="shield-checkmark-outline" size={14} color={colors.muted} />
             <Text style={styles.footerText}>Secure Ocupulse Gateway v2.4.0</Text>
