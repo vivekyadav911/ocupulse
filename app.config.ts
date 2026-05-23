@@ -40,7 +40,8 @@ export default (): ExpoConfig => ({
       {
         cameraPermission:
           'Ocupulse uses the camera for parachute slow-motion and hand-fan tracking experiments.',
-        microphonePermission: 'Ocupulse records audio with video clips during camera experiments.',
+        microphonePermission:
+          'Ocupulse uses the microphone for Sound Pollution Hunter ambient sampling and audio with video clips during camera experiments.',
         recordAudioAndroid: true,
       },
     ],

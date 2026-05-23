@@ -1,3 +1,5 @@
+import type { PollutionTier } from '../calc/soundLevel';
+
 export type SoundSample = {
   id: string;
   peakDb: number;
@@ -14,4 +16,7 @@ export type SoundSamplePayload = {
   lat: number;
   lng: number;
   address: string;
+  sampleDurationSec?: number;
+  sampleCount?: number;
+  pollutionTier?: PollutionTier;
 };

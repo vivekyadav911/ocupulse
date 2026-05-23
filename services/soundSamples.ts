@@ -12,7 +12,7 @@ export function leaderRowToSoundSample(row: LeaderRow): SoundSample | null {
     avgDb: row.avgDb ?? peakDb,
     lat: row.lat,
     lng: row.lng,
-    address: '',
+    address: row.address ?? '',
     teamName: row.teamName,
   };
 }

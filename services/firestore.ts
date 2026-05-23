@@ -11,6 +11,7 @@ export type LeaderRow = {
   lng?: number;
   peakDb?: number;
   avgDb?: number;
+  address?: string;
 };
 
 export type LeaderboardFilter = string | 'all';
@@ -40,6 +41,7 @@ export function subscribeLeaderboard(
             lng: x.lng != null ? Number(x.lng) : undefined,
             peakDb: x.peakDb != null ? Number(x.peakDb) : undefined,
             avgDb: x.avgDb != null ? Number(x.avgDb) : undefined,
+            address: x.address != null ? String(x.address) : undefined,
           };
         })
         .filter((r) => activityType === 'all' || r.activityType === activityType)
