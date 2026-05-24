@@ -64,12 +64,6 @@ function StudentHome() {
         icon="folder-open-outline"
         onPress={() => router.push('/experiments-data')}
       />
-      <Button
-        title="Sound results map"
-        variant="secondary"
-        icon="map-outline"
-        onPress={() => router.push('/results/sound-map')}
-      />
     </ScreenShell>
   );
 }

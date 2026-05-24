@@ -1,10 +1,12 @@
 import {
   fetchParachuteLeaderboard,
   getApiBase,
+  submitBreathingActivity,
   submitEarthquakeActivity,
   submitHandfanActivity,
   submitHumanperfActivity,
   submitParachuteActivity,
+  submitReactionActivity,
   submitSoundActivity,
 } from '../stemmApi';
 
@@ -260,6 +262,125 @@ describe('stemmApi', () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       `${getApiBase()}/api/activities/5/submit`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    );
+  });
+
+  it('submitReactionActivity POSTs JSON to activity 6 endpoint', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({ ok: true, text: async () => '' });
+    global.fetch = mockFetch;
+
+    const payload = {
+      activityId: 6 as const,
+      submittedAt: '2026-05-24T00:00:00.000Z',
+      team: { teamName: 'Alpha', memberName: 'Sam', gradeLevel: 'Year 6' },
+      phase1: { reactionMs: 250, appearTs: 1000, tapTs: 1250 },
+      phase2: { reactionMs: 300, handUsed: 'left' as const, appearTs: 2000, tapTs: 2300 },
+      phase3: {
+        accuracyPct: 85,
+        avgDelayMs: 12,
+        tracePath: [{ x: 1, y: 2, t: 1000 }],
+        idealTrace: [{ x: 1, y: 2, t: 1000 }],
+        waveSnapshots: [[{ x: 0, y: 80, t: 0 }]],
+        waveConfig: {
+          width: 300,
+          height: 160,
+          amplitude: 40,
+          wavelength: 150,
+          scrollSpeed: 0.03,
+        },
+      },
+      comparison: {
+        dominantMs: 250,
+        nonDominantMs: 300,
+        differenceMs: 50,
+        percentSlower: 20,
+      },
+      statistics: {
+        phase1Mean: 250,
+        phase1StdDev: 0,
+        phase2Mean: 300,
+        phase2StdDev: 0,
+        phase3AccuracyMean: 85,
+        phase3AccuracyStdDev: 0,
+      },
+      scatterData: [{ memberName: 'Sam', phase1Ms: 250, phase3AccuracyPct: 85 }],
+      reflection: {
+        predictedReactionMs: '280',
+        surprises: 'None',
+        practiceHelped: 'Yes',
+      },
+    };
+
+    await submitReactionActivity(payload);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${getApiBase()}/api/activities/6/submit`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    );
+  });
+
+  it('submitBreathingActivity POSTs JSON to activities/7 endpoint', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({ ok: true, text: async () => '' });
+    global.fetch = mockFetch;
+
+    const payload = {
+      activityId: 7 as const,
+      submittedAt: '2026-05-24T00:00:00.000Z',
+      team: { teamName: 'Alpha', memberName: 'Sam', gradeLevel: 'Year 6' },
+      location: { lat: -37.8, lng: 144.9 },
+      readings: {
+        rest: {
+          stateLabel: 'At rest',
+          bpm: 14,
+          peakCount: 7,
+          predictedBpm: '15',
+          waveform: [{ t: 0, z: 0.02 }],
+          recordedAt: '2026-01-01T00:00:00.000Z',
+        },
+        jog: {
+          stateLabel: 'After exercise 1 (jog)',
+          bpm: 22,
+          peakCount: 11,
+          predictedBpm: '20',
+          waveform: [{ t: 0, z: 0.04 }],
+          recordedAt: '2026-01-01T00:01:00.000Z',
+        },
+        starJumps: {
+          stateLabel: 'After exercise 2 (star jumps)',
+          bpm: 28,
+          peakCount: 14,
+          predictedBpm: '25',
+          waveform: [{ t: 0, z: 0.06 }],
+          recordedAt: '2026-01-01T00:02:00.000Z',
+        },
+      },
+      teamSummary: {
+        avgRestBpm: 14,
+        avgJogBpm: 22,
+        avgStarJumpsBpm: 28,
+        jogIncreasePct: 57.1,
+        memberRows: [],
+      },
+      reflection: {
+        wereYouRight: 'Mostly',
+        surprises: 'Higher after jog',
+        predictions: { rest: '15', jog: '20', starJumps: '25' },
+      },
+    };
+
+    await submitBreathingActivity(payload);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${getApiBase()}/api/activities/7/submit`,
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

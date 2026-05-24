@@ -1,196 +1,427 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LayoutChangeEvent, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
+import { HandSelector } from '../../components/reaction/HandSelector';
+import { MovingTraceCanvas } from '../../components/reaction/MovingTraceCanvas';
+import { ReactionComparisonTable } from '../../components/reaction/ReactionComparisonTable';
+import { ReactionReflectionForm } from '../../components/reaction/ReactionReflectionForm';
+import { ReactionStatisticsPanel } from '../../components/reaction/ReactionStatisticsPanel';
+import { ReactionSummaryTable } from '../../components/reaction/ReactionSummaryTable';
+import { ReactionTapPanel, type TapResult } from '../../components/reaction/ReactionTapPanel';
+import { TraceReplayOverlay } from '../../components/reaction/TraceReplayOverlay';
 import { StatReadout } from '../../components/StatReadout';
-import {
-  averageReactionMs,
-  combinedReactionScore,
-  idealTraceSvgPath,
-  randomReactionDelayMs,
-  tracePathMse,
-  traceScoreFromMse,
-  type Point2,
-} from '../../lib/calc/reactionStats';
+import { useMovingTraceChallenge } from '../../hooks/useMovingTraceChallenge';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
 import { showAlert } from '../../lib/alert';
-import { writeSessionOptimistic } from '../../services/firestore';
+import { rankReactionTimes } from '../../lib/calc/reactionStats';
+import {
+  buildReactionSubmitPayload,
+  computeTeamAggregates,
+  scoreFromReactionState,
+} from '../../lib/reaction/buildSubmitPayload';
+import {
+  createInitialReactionSessionState,
+  dominantNonDominantComparison,
+  type Phase3Result,
+  type ReactionSessionState,
+} from '../../lib/reaction/sessionState';
+import { saveActivityResult } from '../../services/activityWrite';
+import { insertOutbox, resultsDao } from '../../services/db/sqlite';
+import { subscribeTeamExperiments } from '../../services/experimentsData';
+import { submitReactionActivity } from '../../services/stemmApi';
 import { useSessionStore } from '../../store/sessionStore';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
-import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
 
-const REACTION_ROUNDS = 5;
+const TRACE_H = 200;
+
+function betterPhase3(a: Phase3Result, b: Phase3Result): Phase3Result {
+  return a.accuracyPct >= b.accuracyPct ? a : b;
+}
 
 export default function ReactionScreen() {
   const router = useRouter();
-  const team = useSessionStore((s) => s.teamName);
+  const teamName = useSessionStore((s) => s.teamName);
+  const teamId = useSessionStore((s) => s.teamId);
+  const studentFirstName = useSessionStore((s) => s.studentFirstName);
+  const gradeLevel = useSessionStore((s) => s.gradeLevel);
   const { recordingDisabled } = useRecordingGate();
-  const { colors } = useAppTheme();
+  const { width: windowW } = useWindowDimensions();
+  const traceWidth = Math.max(280, windowW - 48);
+
+  const [state, setState] = useState<ReactionSessionState>(createInitialReactionSessionState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const [phase1AttemptKey, setPhase1AttemptKey] = useState(0);
+  const [phase2AttemptKey, setPhase2AttemptKey] = useState(0);
+  const [phase3AttemptKey, setPhase3AttemptKey] = useState(0);
+  const [lastPhase3Attempt, setLastPhase3Attempt] = useState<Phase3Result | null>(null);
+
+  const trace = useMovingTraceChallenge({
+    width: traceWidth,
+    height: TRACE_H,
+  });
+
   const styles = useThemedStyles(activityScreenStyles);
 
-  const [phase, setPhase] = useState<'react' | 'trace'>('react');
-  const [times, setTimes] = useState<number[]>([]);
-  const [armed, setArmed] = useState(false);
-  const [waiting, setWaiting] = useState(false);
-  const [tracePoints, setTracePoints] = useState<Point2[]>([]);
-  const [traceSize, setTraceSize] = useState({ w: 300, h: 160 });
-  const [saving, setSaving] = useState(false);
+  const phase3Locked =
+    state.phase === 'phase3' || state.phase === 'phase3Results' || trace.phase === 'running';
 
-  const startPress = useRef(0);
-  const delayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (trace.phase !== 'done') return;
+    const result = trace.consumeResult();
+    if (!result) return;
+    setLastPhase3Attempt(result);
+    setState((s) => ({
+      ...s,
+      phase3: s.phase3 ? betterPhase3(result, s.phase3) : result,
+      phase: 'phase3Results',
+    }));
+  }, [trace.phase, trace.consumeResult]);
 
-  const clearDelayTimer = useCallback(() => {
-    if (delayTimer.current) {
-      clearTimeout(delayTimer.current);
-      delayTimer.current = null;
-    }
+  const setReflection = useCallback((partial: Partial<ReactionSessionState['reflection']>) => {
+    setState((s) => ({ ...s, reflection: { ...s.reflection, ...partial } }));
   }, []);
 
-  useEffect(() => () => clearDelayTimer(), [clearDelayTimer]);
+  useEffect(() => {
+    if (state.phase !== 'statistics' || !teamId) return;
+    if (!state.phase1 || !state.phase2 || !state.phase3) return;
 
-  const armRound = useCallback(() => {
-    clearDelayTimer();
-    setArmed(false);
-    setWaiting(true);
-    delayTimer.current = setTimeout(() => {
-      setWaiting(false);
-      setArmed(true);
-      startPress.current = performance.now();
-    }, randomReactionDelayMs());
-  }, [clearDelayTimer]);
-
-  const startReact = () => {
-    setTimes([]);
-    setPhase('react');
-    armRound();
-  };
-
-  const registerTap = () => {
-    if (!armed) return;
-    const ms = performance.now() - startPress.current;
-    setArmed(false);
-    setTimes((prev) => {
-      const next = [...prev, ms];
-      if (next.length >= REACTION_ROUNDS) {
-        setPhase('trace');
-        setTracePoints([]);
-        return next;
-      }
-      armRound();
-      return next;
+    return subscribeTeamExperiments(teamId, 'reaction', (rows) => {
+      const peerPayloads = rows.map((r) => r.payload);
+      const teamStats = computeTeamAggregates(
+        peerPayloads,
+        studentFirstName,
+        state.phase1!.reactionMs,
+        state.phase2!.reactionMs,
+        state.phase3!.accuracyPct,
+      );
+      setState((s) => ({ ...s, teamStats }));
     });
-  };
+  }, [state.phase, teamId, studentFirstName, state.phase1, state.phase2, state.phase3]);
 
-  const onTraceLayout = (e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    if (width > 0 && height > 0) setTraceSize({ w: width, h: height });
-  };
+  const handlePhase1Continue = useCallback((best: TapResult) => {
+    setState((s) => ({
+      ...s,
+      phase1: best,
+      phase: 'phase1Summary',
+    }));
+  }, []);
 
-  const addTracePoint = (locationX: number, locationY: number) => {
-    const x = locationX / traceSize.w;
-    const y = locationY / traceSize.h;
-    setTracePoints((pts) => [
-      ...pts,
-      { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) },
-    ]);
-  };
+  const handlePhase2Continue = useCallback((best: TapResult) => {
+    setState((s) => ({
+      ...s,
+      phase2: { ...best, handUsed: s.handUsed },
+      phase: 'phase2Summary',
+    }));
+  }, []);
 
-  const avgReact = averageReactionMs(times);
-  const traceMse = tracePathMse(tracePoints);
-  const traceScore = traceScoreFromMse(traceMse);
-  const combo = combinedReactionScore(avgReact, traceScore);
-  const pathD = idealTraceSvgPath(traceSize.w, traceSize.h);
+  const retryPhase1 = useCallback(() => {
+    setPhase1AttemptKey((k) => k + 1);
+    setState((s) => ({ ...s, phase: 'phase1' }));
+  }, []);
 
-  const save = async () => {
-    if (times.length < REACTION_ROUNDS || tracePoints.length < 8) return;
-    setSaving(true);
+  const retryPhase2 = useCallback(() => {
+    setPhase2AttemptKey((k) => k + 1);
+    setState((s) => ({ ...s, phase: 'phase2' }));
+  }, []);
+
+  const retryPhase3 = useCallback(() => {
+    setPhase3AttemptKey((k) => k + 1);
+    setLastPhase3Attempt(null);
+    trace.reset();
+    setState((s) => ({ ...s, phase: 'phase3' }));
+  }, [trace]);
+
+  const saveResults = async () => {
+    const current = stateRef.current;
+    if (!current.phase1 || !current.phase2 || !current.phase3) {
+      showAlert('Could not save', 'Complete all three phases before saving.');
+      return;
+    }
+
+    setState((s) => ({ ...s, uploadStatus: 'uploading', uploadError: null }));
     try {
-      const sessionId = await writeSessionOptimistic({
-        activityType: 'reaction',
-        teamName: team,
-        score: combo,
-        payload: {
-          avgReactionMs: avgReact,
-          reactionTimesMs: times,
-          traceMse,
-          traceScore,
-          tracePointCount: tracePoints.length,
-        },
+      const payload = buildReactionSubmitPayload(current, {
+        teamName,
+        memberName: studentFirstName,
+        gradeLevel,
       });
+      const score = scoreFromReactionState(current);
+
+      const sessionId = await saveActivityResult({
+        activityType: 'reaction',
+        score,
+        payload: { ...payload, apiUploaded: false },
+      });
+
+      setState((s) => ({ ...s, uploadStatus: 'idle' }));
       router.push(`/results/${sessionId}`);
+
+      void submitReactionActivity(payload)
+        .then(async () => {
+          const existing = await resultsDao.findById(sessionId);
+          if (!existing?.dataJson) return;
+          const stored = JSON.parse(existing.dataJson) as Record<string, unknown>;
+          stored.apiUploaded = true;
+          await resultsDao.update({ ...existing, dataJson: JSON.stringify(stored) });
+          await insertOutbox(`scores/${sessionId}`, { apiUploaded: true, updatedAt: Date.now() });
+        })
+        .catch(() => {
+          /* local save already succeeded; STEMM API sync is best-effort */
+        });
     } catch (e) {
-      showAlert('Could not save', e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
+      const message = e instanceof Error ? e.message : 'Save failed';
+      setState((s) => ({ ...s, uploadStatus: 'error', uploadError: message }));
+      showAlert('Could not save', message);
     }
   };
 
-  return (
-    <ExperimentScreen>
-      <ActivityCard title="Reaction Board" live={armed || waiting}>
-        {phase === 'react' ? (
+  const comparison = dominantNonDominantComparison(state);
+  const phase1Rows = state.phase1
+    ? rankReactionTimes([{ name: studentFirstName, reactionMs: state.phase1.reactionMs }])
+    : [];
+
+  const canvasW = trace.canvasSize.width || traceWidth;
+  const canvasH = trace.canvasSize.height || TRACE_H;
+
+  const renderPhase = () => {
+    switch (state.phase) {
+      case 'intro':
+        return (
           <>
             <Text style={styles.p}>
-              Phase A: wait for the prompt, then tap as fast as you can (5 rounds).
+              Welcome to the Reaction Board Challenge. You will complete three phases: tap reaction
+              (dominant hand), tap reaction (non-dominant hand), and a moving-path tracing
+              challenge. You can retry each phase — your best result is saved.
             </Text>
-            <StatReadout label="Completed taps" value={`${times.length} / ${REACTION_ROUNDS}`} />
+            <ReactionReflectionForm
+              reflection={state.reflection}
+              onChange={setReflection}
+              showPrediction
+              predictionReadOnly={false}
+            />
+            <Button
+              title="Begin Phase 1"
+              onPress={() => setState((s) => ({ ...s, phase: 'phase1' }))}
+              disabled={!state.reflection.predictedReactionMs.trim() || recordingDisabled}
+            />
+          </>
+        );
+
+      case 'phase1':
+        return (
+          <>
+            <Text style={styles.p}>
+              Phase 1 — Tap reaction (dominant hand). Wait for the coloured button, then tap as fast
+              as you can. Retry as many times as you like — your fastest time counts.
+            </Text>
+            <ReactionTapPanel
+              key={`phase1-${phase1AttemptKey}`}
+              attemptKey={phase1AttemptKey}
+              onContinue={handlePhase1Continue}
+              disabled={recordingDisabled}
+              autoStart
+            />
+          </>
+        );
+
+      case 'phase1Summary':
+        return (
+          <>
+            <ReactionSummaryTable
+              rows={phase1Rows.map((r) => ({
+                member: r.name,
+                reactionMs: r.reactionMs,
+                rank: r.rank,
+              }))}
+              teamAvg={state.teamStats?.phase1Mean ?? state.phase1?.reactionMs}
+              fastest={state.teamStats?.phase1Fastest ?? state.phase1?.reactionMs}
+            />
+            <Button title="Retry Phase 1" variant="secondary" onPress={retryPhase1} />
+            <Button
+              title="Continue to Phase 2"
+              onPress={() => setState((s) => ({ ...s, phase: 'phase2' }))}
+            />
+          </>
+        );
+
+      case 'phase2':
+        return (
+          <>
+            <Text style={styles.p}>
+              Phase 2 — Non-dominant hand. Confirm which hand you are using, then complete the tap
+              test. Retry to improve — your best time counts.
+            </Text>
+            <HandSelector
+              value={state.handUsed}
+              onChange={(hand) => setState((s) => ({ ...s, handUsed: hand }))}
+            />
+            <ReactionTapPanel
+              key={`phase2-${phase2AttemptKey}`}
+              attemptKey={phase2AttemptKey}
+              onContinue={handlePhase2Continue}
+              disabled={recordingDisabled}
+              autoStart
+            />
+          </>
+        );
+
+      case 'phase2Summary':
+        return comparison ? (
+          <>
+            <ReactionComparisonTable
+              memberName={studentFirstName}
+              comparison={comparison}
+              teamAvgDominant={state.teamStats?.phase1Mean ?? comparison.dominantMs}
+              teamAvgNonDominant={state.teamStats?.phase2Mean ?? comparison.nonDominantMs}
+              fastestDominant={state.teamStats?.phase1Fastest ?? comparison.dominantMs}
+              fastestNonDominant={state.teamStats?.phase2Fastest ?? comparison.nonDominantMs}
+            />
+            <Button title="Retry Phase 2" variant="secondary" onPress={retryPhase2} />
+            <Button
+              title="Continue to Phase 3"
+              onPress={() => {
+                setPhase3AttemptKey((k) => k + 1);
+                setLastPhase3Attempt(null);
+                trace.reset();
+                setState((s) => ({ ...s, phase: 'phase3', phase3: null }));
+              }}
+            />
+          </>
+        ) : null;
+
+      case 'phase3':
+        return (
+          <View>
+            <Text style={styles.p}>
+              Phase 3 — Tracing challenge. Trace the moving sine wave with your finger for 10
+              seconds. Each attempt uses a random wave shape — retry to beat your best accuracy.
+            </Text>
+            <MovingTraceCanvas
+              config={trace.config}
+              canvasWidth={canvasW}
+              canvasHeight={canvasH}
+              elapsedMs={trace.elapsedMs}
+              durationMs={trace.durationMs}
+              isRunning={trace.phase === 'running'}
+              onTouch={trace.addTouchPoint}
+              onLayout={trace.setCanvasLayout}
+            />
+            {trace.phase === 'idle' ? (
+              <Button title="Start tracing" onPress={trace.start} disabled={recordingDisabled} />
+            ) : null}
+            {trace.phase === 'running' ? (
+              <StatReadout
+                label="Progress"
+                value={`${Math.round((trace.elapsedMs / trace.durationMs) * 100)}%`}
+              />
+            ) : null}
+          </View>
+        );
+
+      case 'phase3Results': {
+        const displayResult = lastPhase3Attempt ?? state.phase3;
+        if (!displayResult) return null;
+        const bestResult = state.phase3;
+        return (
+          <>
             <StatReadout
-              label="Avg reaction (ms)"
-              value={times.length ? `${Math.round(avgReact)}` : '—'}
+              label="This try — accuracy"
+              value={`${displayResult.accuracyPct.toFixed(1)}%`}
             />
-            <Text style={styles.instr}>
-              {armed ? 'Tap now!' : waiting ? 'Wait…' : 'Press start to begin'}
-            </Text>
+            <StatReadout
+              label="This try — avg delay"
+              value={`${Math.round(displayResult.avgDelayMs)} ms`}
+            />
+            {bestResult && Math.abs(bestResult.accuracyPct - displayResult.accuracyPct) > 0.05 ? (
+              <StatReadout
+                label="Best accuracy so far"
+                value={`${bestResult.accuracyPct.toFixed(1)}%`}
+              />
+            ) : null}
+            <TraceReplayOverlay
+              width={canvasW}
+              height={canvasH}
+              idealTrace={displayResult.idealTrace}
+              waveSnapshots={displayResult.waveSnapshots}
+              tracePath={displayResult.tracePath}
+            />
+            <Button title="Retry Phase 3" variant="secondary" onPress={retryPhase3} />
             <Button
-              title="Start reaction rounds"
-              onPress={startReact}
-              disabled={waiting || armed || recordingDisabled}
+              title="Continue with best result"
+              onPress={() => setState((s) => ({ ...s, phase: 'statistics' }))}
+              disabled={!state.phase3}
             />
-            <Button title="Tap!" onPress={registerTap} disabled={!armed} />
-            <Button title="Home" variant="secondary" onPress={() => router.back()} />
           </>
-        ) : (
+        );
+      }
+
+      case 'statistics':
+        return (
           <>
-            <Text style={styles.p}>
-              Phase B: drag along the sine path. Lower deviation = higher trace score.
-            </Text>
-            <StatReadout label="Avg reaction (ms)" value={`${Math.round(avgReact)}`} />
-            <StatReadout label="Trace score" value={`${traceScore}`} />
-            <StatReadout label="Combined score" value={`${combo}`} />
-            <View
-              style={[styles.trace, { padding: 0, overflow: 'hidden' }]}
-              onLayout={onTraceLayout}
-              onTouchStart={(e) => addTracePoint(e.nativeEvent.locationX, e.nativeEvent.locationY)}
-              onTouchMove={(e) => addTracePoint(e.nativeEvent.locationX, e.nativeEvent.locationY)}
-            >
-              <Svg width={traceSize.w} height={traceSize.h}>
-                <Path
-                  d={pathD}
-                  stroke={colors.accent}
-                  strokeWidth={3}
-                  fill="none"
-                  strokeDasharray="8 6"
-                />
-              </Svg>
-              {tracePoints.length < 8 ? (
-                <Text style={[styles.traceHelp, { position: 'absolute' }]} pointerEvents="none">
-                  Drag finger along path
-                </Text>
-              ) : null}
-            </View>
-            <Button
-              title={saving ? 'Saving…' : 'Save result'}
-              onPress={() => void save()}
-              disabled={tracePoints.length < 8 || saving}
+            <ReactionStatisticsPanel
+              teamStats={state.teamStats}
+              currentPhase1Ms={state.phase1?.reactionMs ?? null}
+              currentPhase2Ms={state.phase2?.reactionMs ?? null}
+              currentPhase3Accuracy={state.phase3?.accuracyPct ?? null}
             />
-            <Button title="Home" variant="secondary" onPress={() => router.back()} />
+            {state.phase3 ? (
+              <TraceReplayOverlay
+                width={canvasW}
+                height={canvasH}
+                idealTrace={state.phase3.idealTrace}
+                waveSnapshots={state.phase3.waveSnapshots}
+                tracePath={state.phase3.tracePath}
+              />
+            ) : null}
+            <ReactionReflectionForm
+              reflection={state.reflection}
+              onChange={setReflection}
+              showPrediction
+              predictionReadOnly
+            />
+            {state.uploadError ? (
+              <Text style={[styles.p, { color: '#e53935' }]}>{state.uploadError}</Text>
+            ) : null}
+            <Button
+              title={state.uploadStatus === 'uploading' ? 'Saving…' : 'Save & submit'}
+              onPress={() => void saveResults()}
+              disabled={state.uploadStatus === 'uploading'}
+            />
           </>
-        )}
-      </ActivityCard>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  const body = (
+    <ActivityCard title="Reaction Board" live={trace.phase === 'running'}>
+      {renderPhase()}
+      {!phase3Locked ? (
+        <Button title="Home" variant="secondary" onPress={() => router.back()} />
+      ) : null}
+    </ActivityCard>
+  );
+
+  return (
+    <ExperimentScreen title="Reaction Board Challenge">
+      {phase3Locked ? (
+        <View style={{ flex: 1, paddingBottom: 32 }}>{body}</View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {body}
+        </ScrollView>
+      )}
     </ExperimentScreen>
   );
 }

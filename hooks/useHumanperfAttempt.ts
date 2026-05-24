@@ -59,12 +59,15 @@ export function useHumanperfAttempt() {
       const now = Date.now();
       const sample: AccelSample = { x, y, z, t: now };
 
+      if (recordingRef.current) {
+        samplesRef.current.push(sample);
+      }
+
       const prev = prevSampleRef.current;
       if (prev) {
         const jerk = computeJerkMm(prev, sample);
         setLiveJerkMm(jerk);
         if (recordingRef.current) {
-          samplesRef.current.push(sample);
           setPeakJerkMm((p) => Math.max(p, jerk));
         }
       }

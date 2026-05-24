@@ -8,6 +8,7 @@ import {
   pollutionTierLabel,
 } from '../../lib/calc/soundLevel';
 import { StatReadout } from '../StatReadout';
+import { ExperimentReflectionSection } from './ExperimentReflectionSection';
 import { StemmMap } from '../StemmMap';
 import { Text, View } from 'react-native';
 import { useThemedStyles } from '../../theme/themedStyles';
@@ -126,13 +127,38 @@ export function ExperimentSummaryBody({ record }: ExperimentSummaryBodyProps) {
 
       {activityType === 'reaction' ? (
         <>
-          <StatReadout
-            label="Avg reaction"
-            value={`${Math.round(num(payload, 'avgReactionMs') ?? 0)} ms`}
-          />
-          <StatReadout label="Trace score" value={`${num(payload, 'traceScore') ?? '—'}`} />
+          {payload.phase1 && typeof payload.phase1 === 'object' ? (
+            <>
+              <StatReadout
+                label="Phase 1 reaction (dominant)"
+                value={`${Math.round(num(payload.phase1 as Record<string, unknown>, 'reactionMs') ?? 0)} ms`}
+              />
+              <StatReadout
+                label="Phase 2 reaction (non-dominant)"
+                value={`${Math.round(num(payload.phase2 as Record<string, unknown>, 'reactionMs') ?? 0)} ms`}
+              />
+              <StatReadout
+                label="Phase 3 accuracy"
+                value={`${(num(payload.phase3 as Record<string, unknown>, 'accuracyPct') ?? 0).toFixed(1)}%`}
+              />
+              <StatReadout
+                label="Phase 3 avg delay"
+                value={`${Math.round(num(payload.phase3 as Record<string, unknown>, 'avgDelayMs') ?? 0)} ms`}
+              />
+            </>
+          ) : (
+            <>
+              <StatReadout
+                label="Avg reaction"
+                value={`${Math.round(num(payload, 'avgReactionMs') ?? 0)} ms`}
+              />
+              <StatReadout label="Trace score" value={`${num(payload, 'traceScore') ?? '—'}`} />
+            </>
+          )}
         </>
       ) : null}
+
+      <ExperimentReflectionSection reflection={payload.reflection} />
 
       {activityType === 'earthquake' ? (
         Array.isArray(payload.designs) ? (

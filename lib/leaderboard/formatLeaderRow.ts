@@ -25,14 +25,18 @@ export function formatLeaderboardDisplay(
   const act = activityType as ActivityType;
   switch (act) {
     case 'reaction': {
-      const avgMs = num(payload, 'avgReactionMs');
-      const trace = num(payload, 'traceScore');
+      const phase1 = payload.phase1 as Record<string, unknown> | undefined;
+      const phase3 = payload.phase3 as Record<string, unknown> | undefined;
+      const avgMs = phase1 ? num(phase1, 'reactionMs') : num(payload, 'avgReactionMs');
+      const accuracy = phase3 ? num(phase3, 'accuracyPct') : num(payload, 'traceScore');
       return {
         scoreText: `${Math.round(score)}`,
         detail:
           avgMs != null
-            ? `avg ${Math.round(avgMs)} ms · trace ${trace ?? '—'}`
-            : 'reaction + trace',
+            ? phase3
+              ? `${Math.round(avgMs)} ms · ${(accuracy ?? 0).toFixed(0)}% trace`
+              : `avg ${Math.round(avgMs)} ms · trace ${accuracy ?? '—'}`
+            : 'reaction board',
       };
     }
     case 'sound': {

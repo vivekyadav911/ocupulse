@@ -1,6 +1,8 @@
+import type { BreathingSubmitPayload } from '../lib/breathing/buildSubmitPayload';
 import type { EarthquakeSubmitPayload } from '../lib/earthquake/buildSubmitPayload';
 import type { HandfanSubmitPayload } from '../lib/handfan/buildSubmitPayload';
 import type { HumanperfSubmitPayload } from '../lib/humanperf/buildSubmitPayload';
+import type { ReactionSubmitPayload } from '../lib/reaction/buildSubmitPayload';
 import type { ParachuteSubmitPayload } from '../lib/parachute/runSummary';
 import type { SoundSubmitPayload } from '../lib/sound/buildSubmitPayload';
 
@@ -60,14 +62,59 @@ export async function submitEarthquakeActivity(payload: EarthquakeSubmitPayload)
 }
 
 export async function submitHumanperfActivity(payload: HumanperfSubmitPayload): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/activities/5/submit`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `Upload failed (${res.status})`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${API_BASE}/api/activities/5/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `Upload failed (${res.status})`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function submitReactionActivity(payload: ReactionSubmitPayload): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${API_BASE}/api/activities/6/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `Upload failed (${res.status})`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function submitBreathingActivity(payload: BreathingSubmitPayload): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${API_BASE}/api/activities/7/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `Upload failed (${res.status})`);
+    }
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

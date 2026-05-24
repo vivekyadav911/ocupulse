@@ -100,14 +100,32 @@ function activityBody(record: ExperimentRecord): string[] {
       break;
     }
     case 'reaction': {
+      const phase1 = payload.phase1 as Record<string, unknown> | undefined;
+      const phase2 = payload.phase2 as Record<string, unknown> | undefined;
+      const phase3 = payload.phase3 as Record<string, unknown> | undefined;
+      if (phase1?.reactionMs != null) {
+        lines.push(`Phase 1 reaction (dominant): ${Math.round(Number(phase1.reactionMs))} ms`);
+      }
+      if (phase2?.reactionMs != null) {
+        lines.push(
+          `Phase 2 reaction (non-dominant): ${Math.round(Number(phase2.reactionMs))} ms (${String(phase2.handUsed ?? '—')} hand)`,
+        );
+      }
+      if (phase3?.accuracyPct != null) {
+        lines.push(`Phase 3 accuracy: ${Number(phase3.accuracyPct).toFixed(1)}%`);
+      }
+      if (phase3?.avgDelayMs != null) {
+        lines.push(`Phase 3 avg delay: ${Math.round(Number(phase3.avgDelayMs))} ms`);
+      }
       const avgMs = num(payload, 'avgReactionMs');
       const trace = num(payload, 'traceScore');
-      if (avgMs != null) lines.push(`Average reaction: ${Math.round(avgMs)} ms`);
-      if (trace != null) lines.push(`Trace score: ${Math.round(trace)}`);
-      const times = payload.reactionTimesMs;
-      if (Array.isArray(times) && times.length) {
-        lines.push(`Reaction times (ms): ${times.map((t) => Math.round(Number(t))).join(', ')}`);
+      if (avgMs != null && phase1?.reactionMs == null) {
+        lines.push(`Average reaction: ${Math.round(avgMs)} ms`);
       }
+      if (trace != null && phase3?.accuracyPct == null) {
+        lines.push(`Trace score: ${Math.round(trace)}`);
+      }
+      lines.push(...formatReflection(payload.reflection));
       break;
     }
     case 'earthquake': {

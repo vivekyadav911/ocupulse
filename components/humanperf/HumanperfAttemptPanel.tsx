@@ -19,6 +19,11 @@ type HumanperfAttemptPanelProps = {
   canAdvance: boolean;
 };
 
+function formatTimer(elapsedSec: number, totalSec: number): string {
+  const elapsed = Math.min(totalSec, Math.max(0, elapsedSec));
+  return `${elapsed}s / ${totalSec}s`;
+}
+
 export function HumanperfAttemptPanel({
   phase,
   secsLeft,
@@ -32,6 +37,13 @@ export function HumanperfAttemptPanel({
   onNextMovement,
   canAdvance,
 }: HumanperfAttemptPanelProps) {
+  const elapsedSec =
+    phase === 'recording'
+      ? Math.max(0, attemptDurationSec - secsLeft)
+      : phase === 'attemptDone' && currentAttempt
+        ? Math.round(currentAttempt.durationSec)
+        : 0;
+
   const styles = useThemedStyles((t) => ({
     title: {
       fontSize: t.typography.body,
@@ -44,6 +56,13 @@ export function HumanperfAttemptPanel({
       fontSize: t.typography.title,
       fontWeight: '800' as const,
       color: t.colors.accent,
+      textAlign: 'center' as const,
+      marginBottom: t.spacing.xs,
+      fontVariant: ['tabular-nums'] as const,
+    },
+    timerHint: {
+      fontSize: t.typography.caption,
+      color: t.colors.muted,
       textAlign: 'center' as const,
       marginBottom: t.spacing.sm,
     },
@@ -69,27 +88,42 @@ export function HumanperfAttemptPanel({
 
   return (
     <View>
-      <Text style={styles.title}>Timed attempt ({attemptDurationSec} s)</Text>
+      <Text style={styles.title}>Timed attempt</Text>
+      <StatReadout label="Selected duration" value={`${attemptDurationSec} seconds`} />
 
-      {phase === 'recording' ? (
+      {phase === 'idle' ? (
         <>
-          <Text style={styles.timer}>{secsLeft}s remaining</Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+          <Text style={styles.timer}>{formatTimer(0, attemptDurationSec)}</Text>
+          <Text style={styles.timerHint}>
+            Timer runs automatically for {attemptDurationSec}s when you start.
+          </Text>
+          <View style={styles.actions}>
+            <Button title="Start attempt" onPress={onStart} disabled={recordingDisabled} />
           </View>
-          <Button title="Stop" variant="secondary" onPress={onStop} />
         </>
       ) : null}
 
-      {phase === 'idle' ? (
-        <View style={styles.actions}>
-          <Button title="Start attempt" onPress={onStart} disabled={recordingDisabled} />
-        </View>
+      {phase === 'recording' ? (
+        <>
+          <Text style={styles.timer}>{formatTimer(elapsedSec, attemptDurationSec)}</Text>
+          <Text style={styles.timerHint}>
+            {secsLeft > 0
+              ? `${secsLeft}s remaining — stops automatically at ${attemptDurationSec}s`
+              : 'Finishing…'}
+          </Text>
+          <View style={styles.progressTrack}>
+            <View
+              style={[styles.progressFill, { width: `${Math.round((1 - progress) * 100)}%` }]}
+            />
+          </View>
+          <Button title="Stop early" variant="secondary" onPress={onStop} />
+        </>
       ) : null}
 
       {phase === 'attemptDone' && currentAttempt ? (
         <>
           <Text style={styles.title}>Attempt results</Text>
+          <Text style={styles.timer}>{formatTimer(elapsedSec, attemptDurationSec)}</Text>
           <View style={styles.badgeRow}>
             <HumanperfRatingBadge rating={currentAttempt.smoothnessRating} />
           </View>

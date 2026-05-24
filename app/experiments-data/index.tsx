@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { ACTIVITY_LABELS, activityDisplayName } from '../../lib/activities/labels';
 import { Badge } from '../../components/Badge';
@@ -24,6 +24,7 @@ export default function ExperimentsDataListScreen() {
   const isTeacher = role === 'teacher';
   const [rows, setRows] = useState<ExperimentRecord[]>([]);
   const [filter, setFilter] = useState<LeaderboardFilter>('all');
+  const studentSubRef = useRef<ReturnType<typeof subscribeStudentExperiments> | null>(null);
 
   const styles = useThemedStyles((t) => ({
     sub: { color: t.colors.muted, marginBottom: t.spacing.md, lineHeight: 20 },
@@ -56,11 +57,13 @@ export default function ExperimentsDataListScreen() {
   useFocusEffect(
     useCallback(() => {
       void syncOutbox();
+      studentSubRef.current?.refresh();
     }, []),
   );
 
   useEffect(() => {
     if (isTeacher) {
+      studentSubRef.current = null;
       if (!activeTeamId) {
         setRows([]);
         return;
@@ -74,7 +77,11 @@ export default function ExperimentsDataListScreen() {
       return;
     }
     const sub = subscribeStudentExperiments(user.uid, setRows);
-    return () => sub.unsubscribe();
+    studentSubRef.current = sub;
+    return () => {
+      sub.unsubscribe();
+      studentSubRef.current = null;
+    };
   }, [isTeacher, activeTeamId, filter]);
 
   const filteredRows = filter === 'all' ? rows : rows.filter((r) => r.activityType === filter);

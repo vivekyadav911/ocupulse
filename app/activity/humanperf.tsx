@@ -19,7 +19,9 @@ import { useLocation } from '../../hooks/useLocation';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
 import { showAlert } from '../../lib/alert';
 import { scoreFromAttempts, smoothnessRating } from '../../lib/calc/humanperfJerk';
+import type { HumanperfLocation } from '../../lib/humanperf/buildSubmitPayload';
 import { buildHumanperfSubmitPayload } from '../../lib/humanperf/buildSubmitPayload';
+import type { LocationSnapshot } from '../../hooks/useLocation';
 import {
   allMovementsComplete,
   ATTEMPT_DURATIONS_SEC,
@@ -35,6 +37,31 @@ import { useSessionStore } from '../../store/sessionStore';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useThemedStyles } from '../../theme/themedStyles';
 
+const LOCATION_TIMEOUT_MS = 3000;
+
+async function resolveLocationWithTimeout(
+  refresh: () => Promise<LocationSnapshot | null>,
+  cached: HumanperfLocation,
+): Promise<HumanperfLocation> {
+  try {
+    const fresh = await Promise.race([
+      refresh(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), LOCATION_TIMEOUT_MS)),
+    ]);
+    if (fresh?.coords) {
+      return {
+        lat: fresh.coords.lat,
+        lng: fresh.coords.lng,
+        address: fresh.address,
+        suburb: fresh.suburb,
+      };
+    }
+  } catch {
+    /* fall back to cached coords */
+  }
+  return cached;
+}
+
 export default function HumanPerfScreen() {
   const router = useRouter();
   const teamName = useSessionStore((s) => s.teamName);
@@ -42,8 +69,10 @@ export default function HumanPerfScreen() {
   const gradeLevel = useSessionStore((s) => s.gradeLevel);
 
   const [state, setState] = useState<HumanperfSessionState>(createInitialHumanperfSessionState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const { recordingDisabled } = useRecordingGate();
-  const { refresh, loading: locating } = useLocation();
+  const { coords, suburb, address, refresh } = useLocation();
   const processedDoneRef = useRef(false);
 
   const {
@@ -159,8 +188,11 @@ export default function HumanPerfScreen() {
     processedDoneRef.current = true;
 
     const aggregate = getAttemptAggregate();
-    if (aggregate.jerkSeries.length < 5) {
-      showAlert('Too few samples', 'Hold the phone and move through the full attempt.');
+    if (aggregate.jerkSeries.length < 2) {
+      showAlert(
+        'Too few samples',
+        `The ${state.attemptDurationSec}s attempt did not capture enough motion. Hold the phone and move through the full timer.`,
+      );
       resetAttempt(state.attemptDurationSec);
       setState((s) => ({ ...s, attemptPhase: 'idle' }));
       return;
@@ -190,23 +222,26 @@ export default function HumanPerfScreen() {
     state.attemptDurationSec,
   ]);
 
-  const uploadResults = async () => {
+  const saveResults = async () => {
+    const current = stateRef.current;
     setState((s) => ({ ...s, uploadStatus: 'uploading', uploadError: null }));
     try {
-      const loc = await refresh();
+      const cachedLocation: HumanperfLocation = coords
+        ? {
+            lat: coords.lat,
+            lng: coords.lng,
+            address: address || undefined,
+            suburb: suburb || undefined,
+          }
+        : null;
+
+      const location = await resolveLocationWithTimeout(refresh, cachedLocation);
+
       const payload = buildHumanperfSubmitPayload(
-        state,
+        current,
         { teamName, memberName: studentFirstName, gradeLevel },
-        loc
-          ? {
-              lat: loc.coords.lat,
-              lng: loc.coords.lng,
-              address: loc.address,
-              suburb: loc.suburb,
-            }
-          : null,
+        location,
       );
-      await submitHumanperfActivity(payload);
 
       const score = scoreFromAttempts(
         payload.attempts.map((a) => ({ movement: a.movement, avgJerkMm: a.avgJerkMm })),
@@ -215,17 +250,22 @@ export default function HumanPerfScreen() {
       const sessionId = await saveActivityResult({
         activityType: 'humanperf',
         score,
-        payload: { ...payload, apiUploaded: true },
+        payload: { ...payload, apiUploaded: false },
       });
 
-      setState((s) => ({ ...s, uploadStatus: 'success', uploadError: null }));
       router.push(`/results/${sessionId}`);
+
+      void submitHumanperfActivity(payload).catch(() => {
+        /* local save already succeeded; API sync is best-effort */
+      });
     } catch (e) {
+      const message = e instanceof Error ? e.message : 'Save failed';
       setState((s) => ({
         ...s,
         uploadStatus: 'error',
-        uploadError: e instanceof Error ? e.message : 'Upload failed',
+        uploadError: message,
       }));
+      showAlert('Could not save', message);
     }
   };
 
@@ -321,18 +361,12 @@ export default function HumanPerfScreen() {
         ) : null}
 
         {allMovementsComplete(state.attempts) ? (
-          <ActivityCard title="Reflection & upload">
+          <ActivityCard title="Reflection & save">
             <HumanperfReflectionForm reflection={state.reflection} onChange={setReflection} />
             <View style={styles.actions}>
               <Button
-                title={
-                  state.uploadStatus === 'uploading'
-                    ? locating
-                      ? 'Getting GPS…'
-                      : 'Uploading…'
-                    : 'Upload results'
-                }
-                onPress={() => void uploadResults()}
+                title={state.uploadStatus === 'uploading' ? 'Saving…' : 'Save result'}
+                onPress={() => void saveResults()}
                 disabled={
                   state.uploadStatus === 'uploading' ||
                   !state.reflection.hardestToKeepSmooth.trim() ||
@@ -342,9 +376,9 @@ export default function HumanPerfScreen() {
               />
               <Button title="Home" variant="secondary" onPress={() => router.back()} />
             </View>
-            {state.uploadStatus === 'success' ? (
+            {state.uploadStatus === 'success' && !state.uploadError ? (
               <Text style={[styles.uploadStatus, styles.uploadSuccess]}>
-                Upload successful — results saved locally too.
+                Saved — open Experiments Data to export or share your report.
               </Text>
             ) : null}
             {state.uploadStatus === 'error' && state.uploadError ? (
