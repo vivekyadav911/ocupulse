@@ -1,4 +1,9 @@
-import { fetchParachuteLeaderboard, getApiBase, submitParachuteActivity } from '../stemmApi';
+import {
+  fetchParachuteLeaderboard,
+  getApiBase,
+  submitParachuteActivity,
+  submitSoundActivity,
+} from '../stemmApi';
 
 describe('stemmApi', () => {
   const originalFetch = global.fetch;
@@ -73,5 +78,45 @@ describe('stemmApi', () => {
         reflection: { bestDesign: '', easiestDesign: '', predictionsCorrect: '' },
       }),
     ).rejects.toThrow('Server error');
+  });
+
+  it('submitSoundActivity POSTs JSON to activity 2 endpoint', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({ ok: true, text: async () => '' });
+    global.fetch = mockFetch;
+
+    const payload = {
+      activityId: 2 as const,
+      submittedAt: '2026-05-24T00:00:00.000Z',
+      team: { teamName: 'Alpha', memberName: 'Sam', gradeLevel: 'Year 6' },
+      captures: [
+        {
+          actionLabel: 'dropping a book',
+          prediction: 'louder' as const,
+          peakDb: 72,
+          lat: -37.8,
+          lng: 144.9,
+          capturedAt: '2026-05-24T00:01:00.000Z',
+          predictionCorrect: true,
+        },
+      ],
+      summary: {
+        loudestAction: 'dropping a book (72 dB)',
+        quietestAction: 'dropping a book (72 dB)',
+        avgDb: 72,
+        earProtectionRecommended: false,
+      },
+      reflection: { surprises: 'Quiet library', earMuffRecommendation: 'No' },
+    };
+
+    await submitSoundActivity(payload);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${getApiBase()}/api/activities/2/submit`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    );
   });
 });

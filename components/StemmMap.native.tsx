@@ -8,11 +8,13 @@ export function StemmMap({
   markers,
   showsUserLocation,
   showsMyLocationButton,
+  mapType = 'standard',
 }: StemmMapProps) {
   return (
     <MapView
       style={style}
       initialRegion={initialRegion}
+      mapType={mapType}
       showsUserLocation={showsUserLocation}
       showsMyLocationButton={showsMyLocationButton}
     >
@@ -20,8 +22,8 @@ export function StemmMap({
         <Marker
           key={m.id}
           coordinate={{ latitude: m.latitude, longitude: m.longitude }}
-          title={m.title}
-          description={m.description}
+          title={m.calloutTitle ?? m.title}
+          description={m.calloutBody ?? m.description}
         >
           <View
             style={{

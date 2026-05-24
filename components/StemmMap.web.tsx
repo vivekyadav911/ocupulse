@@ -23,7 +23,7 @@ function boundsForMarkers(markers: StemmMapMarker[], region: StemmMapProps['init
   return { latMin, latMax, lngMin, lngMax };
 }
 
-export function StemmMap({ style, initialRegion, markers }: StemmMapProps) {
+export function StemmMap({ style, initialRegion, markers, mapType }: StemmMapProps) {
   const { latMin, latMax, lngMin, lngMax } = boundsForMarkers(markers, initialRegion);
   const latSpan = latMax - latMin || 0.0001;
   const lngSpan = lngMax - lngMin || 0.0001;

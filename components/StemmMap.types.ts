@@ -14,7 +14,11 @@ export type StemmMapMarker = {
   pinColor: string;
   title?: string;
   description?: string;
+  calloutTitle?: string;
+  calloutBody?: string;
 };
+
+export type StemmMapType = 'standard' | 'satellite' | 'hybrid';
 
 export type StemmMapProps = {
   style?: StyleProp<ViewStyle>;
@@ -22,4 +26,5 @@ export type StemmMapProps = {
   markers: StemmMapMarker[];
   showsUserLocation?: boolean;
   showsMyLocationButton?: boolean;
+  mapType?: StemmMapType;
 };

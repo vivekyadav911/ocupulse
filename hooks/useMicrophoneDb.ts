@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { aggregateSoundLevels, meteringToApproxSpl } from '../lib/calc/soundLevel';
 
 export const MIC_HISTORY_POINTS = 72;
-export const MIC_POLL_MS = 150;
+export const MIC_POLL_MS = 300;
 
 const METERING_RECORD_OPTIONS: Audio.RecordingOptions = {
   ...Audio.RecordingOptionsPresets.LOW_QUALITY,
@@ -53,24 +53,30 @@ async function releaseRecordingAudioMode(): Promise<void> {
 export function useMicrophoneDb() {
   const [liveDb, setLiveDb] = useState<number | null>(null);
   const [peakDb, setPeakDb] = useState<number | null>(null);
+  const [capturePeakDb, setCapturePeakDb] = useState<number | null>(null);
   const [avgDb, setAvgDb] = useState<number | null>(null);
   const [history, setHistory] = useState<number[]>(() => Array(MIC_HISTORY_POINTS).fill(0));
   const [recording, setRecording] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [permissionReady, setPermissionReady] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sampleCount, setSampleCount] = useState(0);
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const samplesRef = useRef<number[]>([]);
+  const captureSamplesRef = useRef<number[]>([]);
   const historyRef = useRef<number[]>(Array(MIC_HISTORY_POINTS).fill(0));
   const startingRef = useRef(false);
 
   const pushMeterSample = useCallback((spl: number) => {
     samplesRef.current.push(spl);
+    captureSamplesRef.current.push(spl);
     historyRef.current = [...historyRef.current.slice(1), spl];
-    const { peakDb: nextPeak, avgDb: nextAvg } = aggregateSoundLevels(samplesRef.current);
+    const { peakDb: sessionPeak, avgDb: nextAvg } = aggregateSoundLevels(samplesRef.current);
+    const { peakDb: windowPeak } = aggregateSoundLevels(captureSamplesRef.current);
     setLiveDb(Math.round(spl));
-    setPeakDb(nextPeak);
+    setPeakDb(sessionPeak);
+    setCapturePeakDb(windowPeak);
     setAvgDb(nextAvg);
     setHistory([...historyRef.current]);
     setSampleCount(samplesRef.current.length);
@@ -97,38 +103,49 @@ export function useMicrophoneDb() {
     await releaseRecordingAudioMode();
   }, []);
 
-  const start = useCallback(async (): Promise<boolean> => {
-    if (startingRef.current) return false;
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    setSessionError(null);
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        setPermissionDenied(true);
+        setPermissionReady(false);
+        return false;
+      }
+      setPermissionDenied(false);
+      setPermissionReady(true);
+      return true;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not request microphone permission.';
+      setSessionError(msg);
+      setPermissionReady(false);
+      return false;
+    }
+  }, []);
+
+  const startMetering = useCallback(async (): Promise<boolean> => {
+    if (startingRef.current || recordingRef.current) return recording;
     startingRef.current = true;
     setSessionError(null);
 
     try {
       await unloadRecording();
 
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
-        setPermissionDenied(true);
+      const granted = permissionReady && !permissionDenied ? true : await requestPermission();
+      if (!granted) {
         setRecording(false);
         return false;
       }
-      setPermissionDenied(false);
 
       await configureRecordingAudioMode();
 
-      const { recording } = await Audio.Recording.createAsync(
+      const { recording: rec } = await Audio.Recording.createAsync(
         METERING_RECORD_OPTIONS,
         onRecordingStatusUpdate,
         MIC_POLL_MS,
       );
 
-      recordingRef.current = recording;
-      samplesRef.current = [];
-      historyRef.current = Array(MIC_HISTORY_POINTS).fill(0);
-      setHistory([...historyRef.current]);
-      setLiveDb(null);
-      setPeakDb(null);
-      setAvgDb(null);
-      setSampleCount(0);
+      recordingRef.current = rec;
       setRecording(true);
       return true;
     } catch (e) {
@@ -145,7 +162,28 @@ export function useMicrophoneDb() {
     } finally {
       startingRef.current = false;
     }
-  }, [onRecordingStatusUpdate, unloadRecording]);
+  }, [
+    onRecordingStatusUpdate,
+    permissionDenied,
+    permissionReady,
+    recording,
+    requestPermission,
+    unloadRecording,
+  ]);
+
+  /** @deprecated Use startMetering — kept for spike / legacy callers */
+  const start = useCallback(async (): Promise<boolean> => {
+    samplesRef.current = [];
+    captureSamplesRef.current = [];
+    historyRef.current = Array(MIC_HISTORY_POINTS).fill(0);
+    setHistory([...historyRef.current]);
+    setLiveDb(null);
+    setPeakDb(null);
+    setCapturePeakDb(null);
+    setAvgDb(null);
+    setSampleCount(0);
+    return startMetering();
+  }, [startMetering]);
 
   const stop = useCallback(async (): Promise<MicStopResult> => {
     setRecording(false);
@@ -156,20 +194,44 @@ export function useMicrophoneDb() {
       setPeakDb(finalPeak);
       setAvgDb(finalAvg);
       setLiveDb(Math.round(samplesRef.current[count - 1]!));
+      setCapturePeakDb(aggregateSoundLevels(captureSamplesRef.current).peakDb);
     }
     setSampleCount(count);
     return { peakDb: finalPeak, avgDb: finalAvg, sampleCount: count };
   }, [unloadRecording]);
 
+  const resetCapturePeak = useCallback(() => {
+    captureSamplesRef.current = [];
+    setCapturePeakDb(null);
+  }, []);
+
+  const resetSessionPeak = useCallback(() => {
+    samplesRef.current = [];
+    captureSamplesRef.current = [];
+    historyRef.current = Array(MIC_HISTORY_POINTS).fill(0);
+    setHistory([...historyRef.current]);
+    setLiveDb(null);
+    setPeakDb(null);
+    setCapturePeakDb(null);
+    setAvgDb(null);
+    setSampleCount(0);
+  }, []);
+
   return {
+    requestPermission,
+    startMetering,
     start,
     stop,
+    resetCapturePeak,
+    resetSessionPeak,
     liveDb,
     peakDb,
+    capturePeakDb,
     avgDb,
     history,
     recording,
     permissionDenied,
+    permissionReady,
     sessionError,
     sampleCount,
   };

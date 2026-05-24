@@ -84,7 +84,7 @@ export default function SoundMapScreen() {
     <ScreenShell scroll={false}>
       <PageTitle eyebrow="Sound data" title="Results map" />
       <Text style={styles.legend}>
-        Green under 60 dB · Amber 60–85 · Red over 85 (SQLite + Firestore)
+        Green 0–60 · Amber 60–85 · Orange 85–100 · Red 100+ dB (SQLite + Firestore)
       </Text>
       <StemmMap
         style={styles.map}

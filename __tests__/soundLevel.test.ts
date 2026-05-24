@@ -1,8 +1,11 @@
 import {
   aggregateSoundLevels,
+  formatPredictionCorrect,
+  isPredictionCorrect,
   meteringToApproxSpl,
   pollutionTierForPeakDb,
   pollutionTierLabel,
+  referenceRowForDb,
 } from '../lib/calc/soundLevel';
 
 describe('meteringToApproxSpl', () => {
@@ -11,10 +14,10 @@ describe('meteringToApproxSpl', () => {
     expect(meteringToApproxSpl(-30)).toBe(60);
   });
 
-  it('clamps to sensible SPL range', () => {
-    expect(meteringToApproxSpl(-100)).toBe(20);
-    expect(meteringToApproxSpl(50)).toBe(120);
-    expect(meteringToApproxSpl(Number.NaN)).toBe(20);
+  it('clamps to 0–140 SPL range', () => {
+    expect(meteringToApproxSpl(-100)).toBe(0);
+    expect(meteringToApproxSpl(50)).toBe(140);
+    expect(meteringToApproxSpl(Number.NaN)).toBe(0);
   });
 });
 
@@ -49,5 +52,44 @@ describe('pollutionTierLabel', () => {
     expect(pollutionTierLabel('quiet')).toBe('Quiet');
     expect(pollutionTierLabel('moderate')).toBe('Moderate');
     expect(pollutionTierLabel('loud')).toBe('Loud');
+  });
+});
+
+describe('referenceRowForDb', () => {
+  it('matches whisper/library for low dB', () => {
+    expect(referenceRowForDb(20).source).toBe('Whisper / library');
+  });
+
+  it('matches busy traffic band', () => {
+    expect(referenceRowForDb(70).source).toBe('Busy traffic');
+  });
+
+  it('matches explosion at 140+ dB', () => {
+    expect(referenceRowForDb(140).source).toBe('Explosion');
+  });
+});
+
+describe('isPredictionCorrect', () => {
+  it('returns null when no previous reading', () => {
+    expect(isPredictionCorrect('louder', 80, null)).toBeNull();
+    expect(isPredictionCorrect(null, 80, 70)).toBeNull();
+  });
+
+  it('evaluates louder prediction', () => {
+    expect(isPredictionCorrect('louder', 80, 70)).toBe(true);
+    expect(isPredictionCorrect('louder', 65, 70)).toBe(false);
+  });
+
+  it('evaluates softer prediction', () => {
+    expect(isPredictionCorrect('softer', 60, 70)).toBe(true);
+    expect(isPredictionCorrect('softer', 75, 70)).toBe(false);
+  });
+});
+
+describe('formatPredictionCorrect', () => {
+  it('formats yes/no/N/A', () => {
+    expect(formatPredictionCorrect(true)).toBe('Yes');
+    expect(formatPredictionCorrect(false)).toBe('No');
+    expect(formatPredictionCorrect(null)).toBe('N/A');
   });
 });

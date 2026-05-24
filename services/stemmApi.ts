@@ -1,4 +1,5 @@
 import type { ParachuteSubmitPayload } from '../lib/parachute/runSummary';
+import type { SoundSubmitPayload } from '../lib/sound/buildSubmitPayload';
 
 const API_BASE = process.env.EXPO_PUBLIC_STEMM_API_URL ?? 'https://api.stemm-lab.placeholder';
 
@@ -9,6 +10,18 @@ export type ParachuteLeaderboardEntry = {
 
 export async function submitParachuteActivity(payload: ParachuteSubmitPayload): Promise<void> {
   const res = await fetch(`${API_BASE}/api/activities/1/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Upload failed (${res.status})`);
+  }
+}
+
+export async function submitSoundActivity(payload: SoundSubmitPayload): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/activities/2/submit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

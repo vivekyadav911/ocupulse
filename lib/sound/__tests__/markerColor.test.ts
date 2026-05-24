@@ -1,16 +1,40 @@
-import { markerColorForPeakDb } from '../markerColor';
+import {
+  DB_COLOR_AMBER,
+  DB_COLOR_GREEN,
+  DB_COLOR_ORANGE,
+  DB_COLOR_RED,
+  dbBarColor,
+  markerColorForPeakDb,
+} from '../markerColor';
+
+describe('dbBarColor', () => {
+  it('uses green below 60 dB', () => {
+    expect(dbBarColor(0)).toBe(DB_COLOR_GREEN);
+    expect(dbBarColor(45)).toBe(DB_COLOR_GREEN);
+    expect(dbBarColor(59)).toBe(DB_COLOR_GREEN);
+  });
+
+  it('uses amber from 60 to below 85 dB', () => {
+    expect(dbBarColor(60)).toBe(DB_COLOR_AMBER);
+    expect(dbBarColor(84)).toBe(DB_COLOR_AMBER);
+  });
+
+  it('uses orange from 85 to below 100 dB', () => {
+    expect(dbBarColor(85)).toBe(DB_COLOR_ORANGE);
+    expect(dbBarColor(99)).toBe(DB_COLOR_ORANGE);
+  });
+
+  it('uses red at 100 dB and above', () => {
+    expect(dbBarColor(100)).toBe(DB_COLOR_RED);
+    expect(dbBarColor(140)).toBe(DB_COLOR_RED);
+  });
+});
 
 describe('markerColorForPeakDb', () => {
-  it('uses green below 60 dB', () => {
-    expect(markerColorForPeakDb(45)).toBe('#2ECC71');
-  });
-
-  it('uses amber from 60 to 85 dB', () => {
-    expect(markerColorForPeakDb(60)).toBe('#F39C12');
-    expect(markerColorForPeakDb(85)).toBe('#F39C12');
-  });
-
-  it('uses red above 85 dB', () => {
-    expect(markerColorForPeakDb(86)).toBe('#E74C3C');
+  it('delegates to dbBarColor', () => {
+    expect(markerColorForPeakDb(45)).toBe(DB_COLOR_GREEN);
+    expect(markerColorForPeakDb(70)).toBe(DB_COLOR_AMBER);
+    expect(markerColorForPeakDb(92)).toBe(DB_COLOR_ORANGE);
+    expect(markerColorForPeakDb(105)).toBe(DB_COLOR_RED);
   });
 });
