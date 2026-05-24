@@ -3,7 +3,7 @@ import { formatLeaderboardDisplay } from '../lib/leaderboard/formatLeaderRow';
 import { mergeLeaderRows } from '../lib/leaderboard/mergeRows';
 import { prepareLeaderboardRows } from '../lib/leaderboard/rankRows';
 import type { LeaderboardFilter, LeaderRow } from './firestore';
-import { getAllOutbox, resultsDao } from './db/sqlite';
+import { getAllOutbox, resultsDao, studentsDao } from './db/sqlite';
 import { getFirestoreDb } from './firebase';
 
 export type { LeaderboardFilter, LeaderRow } from './firestore';
@@ -15,6 +15,12 @@ function payloadFromUnknown(raw: unknown): Record<string, unknown> {
   return {};
 }
 
+function studentFirstNameFromPayload(payload: Record<string, unknown>): string | undefined {
+  if (payload.studentFirstName != null) return String(payload.studentFirstName).trim() || undefined;
+  if (payload.memberName != null) return String(payload.memberName).trim() || undefined;
+  return undefined;
+}
+
 export function leaderRowFromStored(
   id: string,
   activityType: string,
@@ -24,6 +30,7 @@ export function leaderRowFromStored(
   const teamName = String(payload.teamName ?? 'Demo Team');
   const submittedAt = Number(payload.submittedAt ?? payload.updatedAt ?? 0);
   const display = formatLeaderboardDisplay(activityType, score, payload);
+  const studentFirstName = studentFirstNameFromPayload(payload);
   return {
     id,
     teamName,
@@ -32,8 +39,8 @@ export function leaderRowFromStored(
     submittedAt,
     scoreLabel: display.scoreText,
     detail: display.detail,
-    studentFirstName:
-      payload.studentFirstName != null ? String(payload.studentFirstName) : undefined,
+    studentId: payload.studentId != null ? String(payload.studentId) : undefined,
+    studentFirstName,
     lat: payload.lat != null ? Number(payload.lat) : undefined,
     lng: payload.lng != null ? Number(payload.lng) : undefined,
     peakDb: payload.peakDb != null ? Number(payload.peakDb) : undefined,
@@ -55,6 +62,8 @@ export async function loadLocalLeaderRows(): Promise<LeaderRow[]> {
   }
 
   const rows: LeaderRow[] = [];
+  const studentNameById = new Map<string, string>();
+
   for (const r of results) {
     if (!r.activityType || r.score == null) continue;
     let payload = outboxPayloadById.get(r.id) ?? {};
@@ -65,6 +74,17 @@ export async function loadLocalLeaderRows(): Promise<LeaderRow[]> {
         payload = {};
       }
     }
+
+    if (r.studentId && !studentFirstNameFromPayload(payload)) {
+      let name = studentNameById.get(r.studentId);
+      if (name === undefined) {
+        const student = await studentsDao.findById(r.studentId);
+        name = student?.firstName?.trim() ?? '';
+        studentNameById.set(r.studentId, name);
+      }
+      if (name) payload = { ...payload, studentFirstName: name };
+    }
+
     rows.push(leaderRowFromStored(r.id, r.activityType, r.score, payload));
   }
   return rows;

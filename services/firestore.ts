@@ -1,6 +1,7 @@
 import { doc, setDoc, type DocumentReference } from 'firebase/firestore';
 import { getCurrentUser, getUserProfile } from './auth';
 import { getTeamTeacherId } from './profiles';
+import { useSessionStore } from '../store/sessionStore';
 import {
   deleteOutboxIds,
   getAllOutbox,
@@ -143,6 +144,7 @@ export async function writeSessionOptimistic(input: {
   teamName: string;
   teamId?: string | null;
   studentId?: string | null;
+  studentFirstName?: string | null;
   userId?: string | null;
   score: number;
   payload: Record<string, unknown>;
@@ -152,15 +154,20 @@ export async function writeSessionOptimistic(input: {
   const user = getCurrentUser();
   const userId = input.userId ?? user?.uid ?? null;
   const submittedAt = Date.now();
-  const teamName = input.teamName.trim() || 'Demo Team';
-  const teacherId = await getTeamTeacherId(input.teamId ?? null);
+  const session = useSessionStore.getState();
+  const teamName = input.teamName.trim() || session.teamName.trim() || 'Demo Team';
+  const teamId = input.teamId ?? session.teamId ?? null;
+  const studentId = input.studentId ?? session.studentId ?? null;
+  const studentFirstName =
+    (input.studentFirstName ?? session.studentFirstName ?? '').trim() || undefined;
+  const teacherId = await getTeamTeacherId(teamId);
 
   await sessionsDao.insert({
     id,
-    teamId: input.teamId ?? null,
+    teamId,
     activityType: input.activityType,
     startTime: submittedAt,
-    studentId: input.studentId ?? null,
+    studentId,
     createdBy: userId,
     synced: 0,
   });
@@ -171,6 +178,7 @@ export async function writeSessionOptimistic(input: {
     activityType: input.activityType,
     score: input.score,
     submittedAt,
+    ...(studentFirstName ? { studentFirstName } : {}),
   };
 
   await resultsDao.insert({
@@ -180,27 +188,28 @@ export async function writeSessionOptimistic(input: {
     score: input.score,
     dataJson: JSON.stringify(storedPayload),
     synced: 0,
-    teamId: input.teamId ?? null,
-    studentId: input.studentId ?? null,
+    teamId,
+    studentId,
     userId,
     mediaUrlsJson: input.mediaUrls?.length ? JSON.stringify(input.mediaUrls) : null,
   });
 
   const docPayload = {
     ...storedPayload,
-    teamId: input.teamId ?? null,
-    studentId: input.studentId ?? null,
+    teamId,
+    studentId,
     userId,
     teacherId,
     sessionId: id,
     mediaUrls: input.mediaUrls ?? [],
     updatedAt: submittedAt,
+    ...(studentFirstName ? { studentFirstName } : {}),
   };
 
   await insertOutbox(`scores/${id}`, docPayload);
   await insertOutbox(`sessions/${id}`, {
-    teamId: input.teamId ?? null,
-    studentId: input.studentId ?? null,
+    teamId,
+    studentId,
     teacherId,
     activityType: input.activityType,
     startTime: submittedAt,

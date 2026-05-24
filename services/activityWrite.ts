@@ -9,13 +9,14 @@ export async function saveActivityResult(input: {
   mediaLocalUri?: string | null;
   mediaMimeType?: string;
 }): Promise<string> {
-  const { teamName, teamId, studentId } = useSessionStore.getState();
+  const { teamName, teamId, studentId, studentFirstName } = useSessionStore.getState();
 
   const sessionId = await writeSessionOptimistic({
     activityType: input.activityType,
     teamName,
     teamId,
     studentId,
+    studentFirstName,
     score: input.score,
     payload: input.payload,
   });

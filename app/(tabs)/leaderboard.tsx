@@ -4,6 +4,10 @@ import { Pressable, Text, View } from 'react-native';
 import Animated, { Layout, useReducedMotion } from 'react-native-reanimated';
 import { PageTitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
+import {
+  formatLeaderboardMeta,
+  formatLeaderboardPrimaryLabel,
+} from '../../lib/leaderboard/formatLeaderRow';
 import type { LeaderboardFilter, LeaderRow } from '../../services/leaderboard';
 import { subscribeLeaderboard } from '../../services/leaderboard';
 import { syncOutbox } from '../../services/firestore';
@@ -72,7 +76,9 @@ export default function LeaderboardScreen() {
     up: { marginLeft: t.spacing.xs, color: t.colors.success, fontWeight: '800' },
     meta: { fontSize: 12, color: t.colors.muted, marginTop: 2 },
     empty: { marginTop: t.spacing.lg, color: t.colors.muted },
-    list: { flex: 1, minHeight: 200 },
+    list: { flex: 1 },
+    listContent: { paddingBottom: t.spacing.sm },
+    listContentEmpty: { flexGrow: 1 },
   }));
 
   const subRef = useRef<ReturnType<typeof subscribeLeaderboard> | null>(null);
@@ -143,21 +149,19 @@ export default function LeaderboardScreen() {
       </View>
       <Animated.FlatList
         style={styles.list}
+        contentContainerStyle={rows.length ? styles.listContent : styles.listContentEmpty}
         data={rows}
         keyExtractor={(item) => item.id}
         itemLayoutAnimation={reduceMotion ? undefined : springLayout}
+        showsVerticalScrollIndicator
         renderItem={({ item, index }) => (
           <Animated.View layout={reduceMotion ? undefined : springLayout}>
             <View style={styles.row}>
               <Text style={styles.rank}>{index + 1}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.team}>
-                  {item.studentFirstName ?? (item.teamName || 'Demo Team')}
-                </Text>
+                <Text style={styles.team}>{formatLeaderboardPrimaryLabel(item)}</Text>
                 <Text style={styles.meta}>
-                  {filter === 'all'
-                    ? `${activityLabel(item.activityType)}${item.detail ? ` · ${item.detail}` : ''}`
-                    : item.detail || activityLabel(item.activityType)}
+                  {formatLeaderboardMeta(item, filter, activityLabel)}
                 </Text>
               </View>
               {movedUp.has(item.id) ? <Text style={styles.up}>▲</Text> : null}

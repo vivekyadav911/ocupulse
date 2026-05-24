@@ -1,3 +1,4 @@
+import type { LeaderRow } from '../../services/firestore';
 import type { ActivityType } from '../../store/sessionStore';
 
 export type LeaderboardDisplay = {
@@ -79,4 +80,29 @@ export function formatLeaderboardDisplay(
     default:
       return { scoreText: `${Math.round(score)}`, detail: activityType };
   }
+}
+
+/** Primary row label — student name when available, otherwise team. */
+export function formatLeaderboardPrimaryLabel(row: LeaderRow): string {
+  const student = row.studentFirstName?.trim();
+  if (student) return student;
+  return row.teamName?.trim() || 'Demo Team';
+}
+
+/** Subtitle under the primary label (team + activity context). */
+export function formatLeaderboardMeta(
+  row: LeaderRow,
+  filter: string | 'all',
+  activityLabel: (activityType: string) => string,
+): string {
+  const parts: string[] = [];
+  if (row.studentFirstName?.trim()) {
+    parts.push(row.teamName?.trim() || 'Demo Team');
+  }
+  if (filter === 'all') {
+    parts.push(activityLabel(row.activityType));
+  }
+  if (row.detail) parts.push(row.detail);
+  else if (filter !== 'all') parts.push(activityLabel(row.activityType));
+  return parts.join(' · ');
 }

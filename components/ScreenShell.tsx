@@ -11,7 +11,14 @@ export function ScreenShell({ children, scroll = true }: ScreenShellProps) {
   const { colors, spacing } = useAppTheme();
 
   const content = (
-    <View style={{ padding: spacing.md, paddingBottom: spacing.xl }}>{children}</View>
+    <View
+      style={[
+        { padding: spacing.md, paddingBottom: scroll ? spacing.xl : spacing.md },
+        !scroll && { flex: 1 },
+      ]}
+    >
+      {children}
+    </View>
   );
 
   return (
