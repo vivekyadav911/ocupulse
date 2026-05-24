@@ -15,6 +15,8 @@ export function ExperimentScreen({
     <View style={{ flex: 1, backgroundColor: colors.surfaceAlt }}>
       <AppHeader />
       <ScrollView
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
         contentContainerStyle={{
           padding: spacing.md,
           paddingBottom: spacing.xl,

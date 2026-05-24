@@ -1,31 +1,75 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AuthRoleToggle } from '../../components/AuthRoleToggle';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
-import { signInAnonymousStudent, signInEmail } from '../../services/auth';
+import { formatAuthError } from '../../lib/authErrors';
+import {
+  getUserProfile,
+  registerStudentEmail,
+  registerTeacherEmail,
+  signInAnonymousStudent,
+  signInEmail,
+  signOutUser,
+} from '../../services/auth';
 import { isFirebaseConfigured } from '../../services/firebase';
+import { resolveAuthRedirect } from '../../lib/authRouting';
 import { useAuthStore } from '../../store/authStore';
+import { useSessionStore } from '../../store/sessionStore';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
 
+type AuthRole = 'student' | 'teacher';
+type AuthMode = 'signin' | 'signup';
+
 export default function LoginScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ mode?: string; role?: string }>();
   const insets = useSafeAreaInsets();
-  const setQuickJoin = useAuthStore((s) => s.setQuickJoinActive);
+  const setRole = useSessionStore((s) => s.setRole);
+  const sessionRole = useSessionStore((s) => s.role);
+  const profileReady = useSessionStore((s) => s.profileReady);
+  const user = useAuthStore((s) => s.user);
+  const profileHydrated = useAuthStore((s) => s.profileHydrated);
   const { colors } = useAppTheme();
+
+  const [role, setAuthRole] = useState<AuthRole>(params.role === 'teacher' ? 'teacher' : 'student');
+  const [mode, setMode] = useState<AuthMode>(params.mode === 'signup' ? 'signup' : 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [busy, setBusy] = useState(false);
+
   const firebaseReady = isFirebaseConfigured();
+
+  useEffect(() => {
+    if (params.role === 'teacher' || params.role === 'student') {
+      setAuthRole(params.role);
+    }
+    if (params.mode === 'signup' || params.mode === 'signin') {
+      setMode(params.mode);
+    }
+  }, [params.mode, params.role]);
+
+  useEffect(() => {
+    if (user === undefined || !profileHydrated || !user) return;
+    const redirect = resolveAuthRedirect({
+      user,
+      role: sessionRole,
+      profileReady,
+      hydrated: true,
+    });
+    if (redirect === 'loading' || redirect === '/(auth)/login') return;
+    router.replace(redirect ?? '/(tabs)');
+  }, [user, profileHydrated, sessionRole, profileReady, router]);
+
   const styles = useThemedStyles((t) => ({
-    screen: {
-      flex: 1,
-      backgroundColor: t.colors.authBg,
-    },
+    screen: { flex: 1, backgroundColor: t.colors.authBg },
     scroll: {
       flexGrow: 1,
       paddingHorizontal: t.spacing.md,
@@ -46,35 +90,15 @@ export default function LoginScreen() {
       gap: t.spacing.xs,
       marginBottom: t.spacing.md,
     },
-    statusDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-    },
-    statusText: {
-      fontSize: t.typography.caption,
-      fontWeight: '700',
-      color: t.colors.muted,
-    },
-    sectionTitle: {
-      fontSize: t.typography.label,
-      fontWeight: '800',
-      color: t.colors.muted,
-      letterSpacing: 0.8,
-      textTransform: 'uppercase' as const,
-      marginBottom: t.spacing.sm,
-    },
+    statusDot: { width: 8, height: 8, borderRadius: 4 },
+    statusText: { fontSize: t.typography.caption, fontWeight: '700', color: t.colors.muted },
     sectionSub: {
       fontSize: t.typography.caption,
       color: t.colors.muted,
       lineHeight: 18,
       marginBottom: t.spacing.sm,
     },
-    divider: {
-      height: 1,
-      backgroundColor: t.colors.border,
-      marginVertical: t.spacing.md,
-    },
+    divider: { height: 1, backgroundColor: t.colors.border, marginVertical: t.spacing.md },
     footer: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
@@ -82,56 +106,127 @@ export default function LoginScreen() {
       gap: t.spacing.xs,
       marginTop: t.spacing.md,
     },
-    footerText: {
-      fontSize: t.typography.caption,
-      color: t.colors.muted,
-    },
+    footerText: { fontSize: t.typography.caption, color: t.colors.muted },
   }));
 
-  const quickJoin = async () => {
-    if (!firebaseReady) {
-      setQuickJoin(true);
-      router.replace('/(tabs)');
-      return;
-    }
-    setBusy(true);
-    try {
-      setQuickJoin(false);
-      await signInAnonymousStudent();
-      router.replace('/(auth)/student-setup');
-    } catch (e) {
-      Alert.alert('Quick join', e instanceof Error ? e.message : 'Anonymous sign-in failed');
-    } finally {
-      setBusy(false);
-    }
+  const finishAuth = (profileRole: AuthRole, ready: boolean) => {
+    setRole(profileRole);
+    useSessionStore.getState().setTeam({ profileReady: ready, role: profileRole });
+    useAuthStore.getState().setProfileHydrated(true);
+    router.replace(
+      ready
+        ? '/(tabs)'
+        : profileRole === 'teacher'
+          ? '/(auth)/teacher-setup'
+          : '/(auth)/student-setup',
+    );
   };
 
-  const teacherLogin = async () => {
+  const signIn = async () => {
     if (!firebaseReady) {
-      Alert.alert('Firebase', 'Add Firebase keys to .env and restart Expo.');
+      Alert.alert('Firebase', 'Configure Firebase in .env and restart Expo with -c.');
       return;
     }
     if (!email.trim() || !password) {
-      Alert.alert('Login', 'Enter email and password.');
+      Alert.alert('Sign in', 'Enter email and password.');
       return;
     }
     setBusy(true);
     try {
-      useAuthStore.getState().setQuickJoinActive(false);
-      await signInEmail(email, password);
-      router.replace('/(tabs)');
+      const cred = await signInEmail(email, password);
+      const profile = await getUserProfile(cred.user.uid);
+      if (!profile) {
+        await signOutUser();
+        Alert.alert(
+          'Sign in',
+          'Account found but profile is missing. Try signing up again with the same email.',
+        );
+        return;
+      }
+      if (profile.role !== role) {
+        await signOutUser();
+        Alert.alert(
+          'Sign in',
+          role === 'student'
+            ? 'This account is registered as a teacher. Switch to Teacher and try again.'
+            : 'This account is registered as a student. Switch to Student and try again.',
+        );
+        return;
+      }
+      finishAuth(profile.role, profile.profileReady ?? false);
     } catch (e) {
-      Alert.alert('Login', e instanceof Error ? e.message : 'Email sign-in failed');
+      Alert.alert('Sign in', formatAuthError(e));
     } finally {
       setBusy(false);
     }
   };
+
+  const signUp = async () => {
+    if (!firebaseReady) {
+      Alert.alert('Firebase', 'Configure Firebase in .env and restart Expo with -c.');
+      return;
+    }
+    if (!email.trim() || !password) {
+      Alert.alert('Sign up', 'Enter email and password.');
+      return;
+    }
+    if (password !== confirm) {
+      Alert.alert('Sign up', 'Passwords do not match.');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Sign up', 'Password must be at least 6 characters.');
+      return;
+    }
+    setBusy(true);
+    try {
+      if (role === 'student') {
+        await registerStudentEmail(email, password);
+      } else {
+        await registerTeacherEmail(email, password, displayName);
+      }
+      finishAuth(role, false);
+    } catch (e) {
+      Alert.alert('Sign up', formatAuthError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const quickJoin = async () => {
+    if (!firebaseReady) {
+      Alert.alert('Firebase', 'Configure Firebase in .env and restart Expo with -c.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const cred = await signInAnonymousStudent();
+      const profile = await getUserProfile(cred.user.uid);
+      if (!profile) {
+        Alert.alert('Quick join', 'Could not create student profile.');
+        return;
+      }
+      finishAuth('student', profile.profileReady ?? false);
+    } catch (e) {
+      Alert.alert('Quick join', formatAuthError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const roleHint =
+    role === 'student'
+      ? mode === 'signup'
+        ? 'Create a student account, then choose your name and team.'
+        : 'Sign in to run experiments and save results.'
+      : mode === 'signup'
+        ? 'Create a teacher account, then set up your supervised team.'
+        : 'Sign in to view roster, results, and team leaderboard.';
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.brand}>Ocupulse</Text>
-
         <View style={styles.statusRow}>
           <View
             style={[
@@ -140,50 +235,92 @@ export default function LoginScreen() {
             ]}
           />
           <Text style={styles.statusText}>
-            {firebaseReady ? 'Firebase connected' : 'Firebase offline — local mode only'}
+            {firebaseReady
+              ? 'Firebase connected'
+              : 'Firebase not configured — run npm run firebase:sync-env then npx expo start -c'}
           </Text>
         </View>
 
         <Card bordered>
-          <Text style={styles.sectionTitle}>Students</Text>
-          <Text style={styles.sectionSub}>
-            Quick join signs you in anonymously, then asks for your name and team.
-          </Text>
-          <Button title="Quick join as student" icon="flash" onPress={quickJoin} disabled={busy} />
+          <AuthRoleToggle
+            value={role}
+            options={[
+              { value: 'student', label: 'Student' },
+              { value: 'teacher', label: 'Teacher' },
+            ]}
+            onChange={setAuthRole}
+            disabled={busy}
+          />
 
-          <View style={styles.divider} />
+          <AuthRoleToggle
+            value={mode}
+            options={[
+              { value: 'signin', label: 'Sign in' },
+              { value: 'signup', label: 'Sign up' },
+            ]}
+            onChange={setMode}
+            disabled={busy}
+          />
 
-          <Text style={styles.sectionTitle}>Teachers</Text>
-          <Text style={styles.sectionSub}>Use your school email and password.</Text>
+          <Text style={styles.sectionSub}>{roleHint}</Text>
+
+          {mode === 'signup' && role === 'teacher' ? (
+            <FormField
+              label="Display name"
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Ms. Chen"
+            />
+          ) : null}
+
           <FormField
             label="Email"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            placeholder="teacher@school.edu"
-            accessibilityLabel="Teacher email"
+            placeholder={role === 'student' ? 'student@school.edu' : 'teacher@school.edu'}
           />
           <FormField
             label="Password"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            placeholder="••••••••"
-            accessibilityLabel="Password"
+            placeholder="Min 6 characters"
           />
+
+          {mode === 'signup' ? (
+            <FormField
+              label="Confirm password"
+              value={confirm}
+              onChangeText={setConfirm}
+              secureTextEntry
+              placeholder="Repeat password"
+            />
+          ) : null}
+
           <Button
-            title="Teacher login"
-            variant="secondary"
-            onPress={teacherLogin}
+            title={mode === 'signin' ? 'Sign in' : 'Create account'}
+            icon={role === 'student' ? 'school' : 'briefcase'}
+            onPress={mode === 'signin' ? signIn : signUp}
             disabled={busy}
           />
-          <Button
-            title="Create teacher account"
-            variant="secondary"
-            onPress={() => router.push('/(auth)/register')}
-            disabled={busy}
-          />
+
+          {role === 'student' && mode === 'signin' ? (
+            <>
+              <View style={styles.divider} />
+              <Text style={styles.sectionSub}>
+                Try the app instantly without email — local testing and demos.
+              </Text>
+              <Button
+                title="Quick join (anonymous)"
+                variant="secondary"
+                icon="flash-outline"
+                onPress={quickJoin}
+                disabled={busy}
+              />
+            </>
+          ) : null}
 
           <View style={styles.footer}>
             <Ionicons name="shield-checkmark-outline" size={14} color={colors.muted} />

@@ -1,17 +1,33 @@
-import * as Notifications from 'expo-notifications';
-import { SchedulableTriggerInputTypes } from 'expo-notifications';
+import { isExpoGo } from '../lib/expoRuntime';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type NotificationsModule = typeof import('expo-notifications');
+
+let notificationsModule: NotificationsModule | null | undefined;
+
+async function loadNotifications(): Promise<NotificationsModule | null> {
+  if (isExpoGo()) return null;
+  if (notificationsModule !== undefined) return notificationsModule;
+  try {
+    notificationsModule = await import('expo-notifications');
+    notificationsModule.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+    return notificationsModule;
+  } catch {
+    notificationsModule = null;
+    return null;
+  }
+}
 
 export async function ensureNotificationPermissions(): Promise<boolean> {
+  const Notifications = await loadNotifications();
+  if (!Notifications) return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
   if (existing === 'granted') return true;
   const { status } = await Notifications.requestPermissionsAsync();
@@ -19,6 +35,9 @@ export async function ensureNotificationPermissions(): Promise<boolean> {
 }
 
 export async function scheduleStreakReminder(): Promise<void> {
+  const Notifications = await loadNotifications();
+  if (!Notifications) return;
+  const { SchedulableTriggerInputTypes } = Notifications;
   await Notifications.cancelAllScheduledNotificationsAsync();
   await Notifications.scheduleNotificationAsync({
     content: {
@@ -34,6 +53,8 @@ export async function scheduleStreakReminder(): Promise<void> {
 }
 
 export async function notifyRankUp(rank: number): Promise<void> {
+  const Notifications = await loadNotifications();
+  if (!Notifications) return;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'Leaderboard update',

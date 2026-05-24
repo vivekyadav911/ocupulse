@@ -34,26 +34,75 @@ export async function findTeamByName(name: string): Promise<Team | null> {
   return team;
 }
 
+/** Students join by team name; never set teacherId. */
 export async function createOrJoinTeam(teamName: string): Promise<Team> {
   const existing = await findTeamByName(teamName);
   if (existing) return existing;
 
-  const user = getCurrentUser();
   const team: Team = {
     id: newId(),
     name: teamName.trim() || 'Team',
-    teacherId: user && !user.isAnonymous ? user.uid : null,
+    teacherId: null,
     schoolId: null,
     synced: 0,
   };
   await teamsDao.insert(team);
   await insertOutbox(`teams/${team.id}`, {
     name: team.name,
-    teacherId: team.teacherId,
+    teacherId: null,
     schoolId: team.schoolId,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   });
+  return team;
+}
+
+export async function createTeacherTeam(input: {
+  displayName: string;
+  teamName: string;
+}): Promise<Team> {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Not signed in');
+
+  const trimmed = input.teamName.trim();
+  if (!trimmed) throw new Error('Team name is required');
+
+  const existing = await findTeamByName(trimmed);
+  if (existing?.teacherId && existing.teacherId !== user.uid) {
+    throw new Error('This team name is already supervised by another teacher.');
+  }
+
+  const team: Team = existing ?? {
+    id: newId(),
+    name: trimmed,
+    teacherId: user.uid,
+    schoolId: null,
+    synced: 0,
+  };
+
+  team.teacherId = user.uid;
+  team.name = trimmed;
+
+  const local = await teamsDao.findById(team.id);
+  if (local) await teamsDao.update(team);
+  else await teamsDao.insert(team);
+
+  await insertOutbox(`teams/${team.id}`, {
+    name: team.name,
+    teacherId: user.uid,
+    schoolId: team.schoolId,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  const managedTeamIds = existing ? [team.id] : [team.id];
+  await updateUserProfile(user.uid, {
+    role: 'teacher',
+    displayName: input.displayName.trim() || user.email?.split('@')[0] || 'Teacher',
+    managedTeamIds,
+    profileReady: true,
+  });
+
   return team;
 }
 
@@ -78,6 +127,7 @@ export async function setupStudentProfile(input: {
   await insertOutbox(`teams/${team.id}/students/${student.id}`, {
     firstName: student.firstName,
     uid: student.uid,
+    email: user.email ?? '',
     teamId: team.id,
     createdAt: Date.now(),
   });
@@ -87,9 +137,23 @@ export async function setupStudentProfile(input: {
     displayName: student.firstName,
     teamId: team.id,
     studentId: student.id,
+    profileReady: true,
   });
 
   return { team, student };
+}
+
+export async function getTeamTeacherId(teamId: string | null): Promise<string | null> {
+  if (!teamId) return null;
+  const local = await teamsDao.findById(teamId);
+  if (local?.teacherId) return local.teacherId;
+
+  const db = getFirestoreDb();
+  if (!db) return null;
+  const snap = await getDoc(doc(db, 'teams', teamId));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return data.teacherId != null ? String(data.teacherId) : null;
 }
 
 export async function pullTeamRoster(teamId: string): Promise<void> {
@@ -135,15 +199,32 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
   teamName?: string;
   studentFirstName?: string;
   role?: 'teacher' | 'student';
+  managedTeamIds?: string[];
+  activeTeamId?: string;
 }> {
   const profile = await getUserProfile(uid);
   if (!profile) return { profileReady: false };
 
   if (profile.role === 'teacher') {
-    return { profileReady: true, role: 'teacher' };
+    const managedTeamIds = profile.managedTeamIds ?? [];
+    const profileReady = profile.profileReady === true && managedTeamIds.length > 0;
+    let teamName: string | undefined;
+    if (managedTeamIds[0]) {
+      await pullTeamRoster(managedTeamIds[0]);
+      const team = await teamsDao.findById(managedTeamIds[0]);
+      teamName = team?.name;
+    }
+    return {
+      profileReady,
+      role: 'teacher',
+      managedTeamIds,
+      activeTeamId: managedTeamIds[0],
+      teamName,
+    };
   }
 
   const { teamId, studentId } = profile;
+  const profileReady = profile.profileReady === true && Boolean(teamId && studentId);
   if (!teamId || !studentId) return { profileReady: false, role: 'student' };
 
   await pullTeamRoster(teamId);
@@ -151,7 +232,7 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
   const student = await studentsDao.findById(studentId);
 
   return {
-    profileReady: true,
+    profileReady,
     role: 'student',
     teamId,
     studentId,

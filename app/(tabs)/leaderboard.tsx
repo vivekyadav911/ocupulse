@@ -7,6 +7,8 @@ import { ScreenShell } from '../../components/ScreenShell';
 import type { LeaderboardFilter, LeaderRow } from '../../services/leaderboard';
 import { subscribeLeaderboard } from '../../services/leaderboard';
 import { syncOutbox } from '../../services/firestore';
+import { subscribeTeamScores } from '../../services/teacher';
+import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 const FILTERS: { key: LeaderboardFilter; label: string }[] = [
@@ -28,11 +30,15 @@ function activityLabel(activityType: string): string {
 }
 
 export default function LeaderboardScreen() {
+  const role = useSessionStore((s) => s.role);
+  const activeTeamId = useSessionStore((s) => s.activeTeamId);
+  const teamName = useSessionStore((s) => s.teamName);
   const [filter, setFilter] = useState<LeaderboardFilter>('all');
   const [rows, setRows] = useState<LeaderRow[]>([]);
   const [movedUp, setMovedUp] = useState<Set<string>>(new Set());
   const prevRankRef = useRef<Map<string, number>>(new Map());
   const reduceMotion = useReducedMotion();
+  const isTeacher = role === 'teacher';
 
   const styles = useThemedStyles((t) => ({
     sub: { color: t.colors.muted, marginBottom: t.spacing.md },
@@ -79,7 +85,7 @@ export default function LeaderboardScreen() {
 
   useEffect(() => {
     const ranks = prevRankRef.current;
-    const sub = subscribeLeaderboard(filter, (next) => {
+    const applyRows = (next: LeaderRow[]) => {
       const up = new Set<string>();
       next.forEach((row, index) => {
         const prev = ranks.get(row.id);
@@ -88,21 +94,39 @@ export default function LeaderboardScreen() {
       });
       setMovedUp(up);
       setRows(next);
-    });
+    };
+
+    if (isTeacher && activeTeamId) {
+      const unsub = subscribeTeamScores(activeTeamId, filter, applyRows);
+      return () => {
+        unsub();
+        ranks.clear();
+      };
+    }
+
+    const sub = subscribeLeaderboard(filter, applyRows);
     subRef.current = sub;
     return () => {
       sub.unsubscribe();
       subRef.current = null;
       ranks.clear();
     };
-  }, [filter]);
+  }, [filter, isTeacher, activeTeamId]);
+
+  const subtitle = isTeacher
+    ? `Team leaderboard — ${teamName || 'your team'}${filter === 'all' ? ' · scores normalized 0–100' : ''}`
+    : filter === 'all'
+      ? 'All activities ranked on a 0–100 scale — pick an activity for native scores'
+      : 'Scores from this device and cloud sync — complete an experiment, then Save result';
+
+  const emptyMessage = isTeacher
+    ? 'No scores yet for your team — students complete activities from their accounts.'
+    : 'No scores yet — open an activity, finish it, and tap Save result.';
 
   return (
     <ScreenShell scroll={false}>
       <PageTitle eyebrow="Rankings" title="Board" />
-      <Text style={styles.sub}>
-        Scores from this device and cloud sync — complete an experiment, then Save result
-      </Text>
+      <Text style={styles.sub}>{subtitle}</Text>
       <View style={styles.chips}>
         {FILTERS.map((f) => {
           const on = filter === f.key;
@@ -127,7 +151,9 @@ export default function LeaderboardScreen() {
             <View style={styles.row}>
               <Text style={styles.rank}>{index + 1}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.team}>{item.teamName || 'Demo Team'}</Text>
+                <Text style={styles.team}>
+                  {item.studentFirstName ?? (item.teamName || 'Demo Team')}
+                </Text>
                 <Text style={styles.meta}>
                   {filter === 'all'
                     ? `${activityLabel(item.activityType)}${item.detail ? ` · ${item.detail}` : ''}`
@@ -139,11 +165,7 @@ export default function LeaderboardScreen() {
             </View>
           </Animated.View>
         )}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            No scores yet — open an activity, finish it, and tap Save result.
-          </Text>
-        }
+        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
       />
     </ScreenShell>
   );

@@ -5,18 +5,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
-import { setupStudentProfile } from '../../services/profiles';
+import { createTeacherTeam } from '../../services/profiles';
 import { syncAll } from '../../services/sync';
 import { useAuthStore } from '../../store/authStore';
 import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
-export default function StudentSetupScreen() {
+export default function TeacherSetupScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const setTeam = useSessionStore((s) => s.setTeam);
   const setRole = useSessionStore((s) => s.setRole);
-  const [firstName, setFirstName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [teamName, setTeamName] = useState('');
   const [busy, setBusy] = useState(false);
   const styles = useThemedStyles((t) => ({
@@ -34,43 +34,34 @@ export default function StudentSetupScreen() {
       color: t.colors.text,
       marginBottom: t.spacing.lg,
     },
-    h1: {
-      fontSize: 24,
-      fontWeight: '800',
-      color: t.colors.text,
-      marginBottom: t.spacing.sm,
-    },
-    sub: {
-      marginBottom: t.spacing.md,
-      color: t.colors.muted,
-      lineHeight: 22,
-    },
+    h1: { fontSize: 24, fontWeight: '800', color: t.colors.text, marginBottom: t.spacing.sm },
+    sub: { marginBottom: t.spacing.md, color: t.colors.muted, lineHeight: 22 },
   }));
 
   const finish = async () => {
-    if (!firstName.trim() || !teamName.trim()) {
-      Alert.alert('Profile', 'Enter your first name and team name.');
+    if (!displayName.trim() || !teamName.trim()) {
+      Alert.alert('Setup', 'Enter your name and team name.');
       return;
     }
     setBusy(true);
     try {
-      const { team, student } = await setupStudentProfile({
-        firstName: firstName.trim(),
+      const team = await createTeacherTeam({
+        displayName: displayName.trim(),
         teamName: teamName.trim(),
       });
-      setRole('student');
+      setRole('teacher');
       setTeam({
         profileReady: true,
-        teamId: team.id,
-        studentId: student.id,
         teamName: team.name,
-        studentFirstName: student.firstName,
+        teamId: team.id,
+        managedTeamIds: [team.id],
+        activeTeamId: team.id,
       });
       useAuthStore.getState().setProfileHydrated(true);
       void syncAll();
       router.replace('/(tabs)');
     } catch (e) {
-      Alert.alert('Setup', e instanceof Error ? e.message : 'Could not save profile');
+      Alert.alert('Setup', e instanceof Error ? e.message : 'Could not create team');
     } finally {
       setBusy(false);
     }
@@ -81,24 +72,22 @@ export default function StudentSetupScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.brand}>Ocupulse</Text>
         <Card bordered>
-          <Text style={styles.h1}>Student profile</Text>
+          <Text style={styles.h1}>Teacher setup</Text>
           <Text style={styles.sub}>
-            Tell us your first name and team. You can join an existing team by typing the same team
-            name your teacher used.
+            Create the team name your students will use when they register. Share this exact name
+            with your class.
           </Text>
           <FormField
-            label="First name"
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder="Alex"
-            accessibilityLabel="First name"
+            label="Your name"
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Ms. Chen"
           />
           <FormField
             label="Team name"
             value={teamName}
             onChangeText={setTeamName}
             placeholder="Team Koala"
-            accessibilityLabel="Team name"
           />
           <Button title="Continue" icon="checkmark" onPress={finish} disabled={busy} />
         </Card>

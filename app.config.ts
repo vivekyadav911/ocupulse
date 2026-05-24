@@ -1,6 +1,10 @@
 import 'dotenv/config';
 import type { ExpoConfig } from 'expo/config';
 
+function firebaseEnv(name: string): string {
+  return process.env[`EXPO_PUBLIC_FIREBASE_${name}`] ?? process.env[`FIREBASE_${name}`] ?? '';
+}
+
 export default (): ExpoConfig => ({
   name: 'Ocupulse',
   slug: 'ocupulse',
@@ -19,6 +23,9 @@ export default (): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: 'com.ocupulse.stemmlab',
     requireFullScreen: true,
+    infoPlist: {
+      UIBackgroundModes: ['fetch'],
+    },
   },
   android: {
     adaptiveIcon: {
@@ -67,15 +74,16 @@ export default (): ExpoConfig => ({
     ],
     'expo-background-fetch',
     'expo-task-manager',
+    'expo-video',
   ],
   extra: {
     router: { origin: false },
-    firebaseApiKey: process.env.FIREBASE_API_KEY ?? '',
-    firebaseAuthDomain: process.env.FIREBASE_AUTH_DOMAIN ?? '',
-    firebaseProjectId: process.env.FIREBASE_PROJECT_ID ?? '',
-    firebaseStorageBucket: process.env.FIREBASE_STORAGE_BUCKET ?? '',
-    firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID ?? '',
-    firebaseAppId: process.env.FIREBASE_APP_ID ?? '',
+    firebaseApiKey: firebaseEnv('API_KEY'),
+    firebaseAuthDomain: firebaseEnv('AUTH_DOMAIN'),
+    firebaseProjectId: firebaseEnv('PROJECT_ID'),
+    firebaseStorageBucket: firebaseEnv('STORAGE_BUCKET'),
+    firebaseMessagingSenderId: firebaseEnv('MESSAGING_SENDER_ID'),
+    firebaseAppId: firebaseEnv('APP_ID'),
     admobAndroidBannerUnitId:
       process.env.ADMOB_ANDROID_BANNER_UNIT_ID ?? 'ca-app-pub-3940256099942544/6300978111',
     admobAndroidInterstitialUnitId:

@@ -1,24 +1,21 @@
-import { CameraView } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, Switch, Text, View } from 'react-native';
 import { ActivityCard } from '../../components/ActivityCard';
+import { ActivityErrorBoundary } from '../../components/ActivityErrorBoundary';
 import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { FormField } from '../../components/FormField';
-import { LinearAccelCharts } from '../../components/LinearAccelCharts';
+import {
+  ParachuteAdvancedSensors,
+  type SensorImpulseFill,
+} from '../../components/ParachuteAdvancedSensors';
+import { ParachuteCameraSection } from '../../components/ParachuteCameraSection';
 import { ParachuteResultsTable } from '../../components/ParachuteResultsTable';
 import { ParachuteSlowMotionReview } from '../../components/ParachuteSlowMotionReview';
 import { StatReadout } from '../../components/StatReadout';
-import { useAccelerometer } from '../../hooks/useAccelerometer';
-import { useCameraRecorder } from '../../hooks/useCameraRecorder';
-import { useDeviceMotionLinearAccel } from '../../hooks/useDeviceMotionLinearAccel';
 import { useLocation } from '../../hooks/useLocation';
-import { useRecordingGate } from '../../hooks/useRecordingGate';
-import { estimateImpactImpulse } from '../../lib/calc/impactImpulse';
-import type { AccelTimelineSample } from '../../lib/calc/impactImpulse';
-import { gForceNoBounce } from '../../lib/calc/gforce';
-import { fmtCalc } from '../../lib/calc/parachuteCalc';
+import { fmtCalc, parsePositive } from '../../lib/calc/parachuteCalc';
 import {
   createInitialChallengeState,
   SESSION_SEC,
@@ -28,6 +25,7 @@ import {
   type TabData,
   type TabKey,
 } from '../../lib/parachute/challengeState';
+import { persistDraftVideo } from '../../lib/parachute/persistDraftVideo';
 import {
   activeTabCalc,
   buildSubmitPayload,
@@ -36,56 +34,47 @@ import {
 } from '../../lib/parachute/runSummary';
 import { saveActivityResult } from '../../services/activityWrite';
 import { submitParachuteActivity } from '../../services/stemmApi';
+import { parachuteScopeKey, useParachuteDraftStore } from '../../store/parachuteDraftStore';
 import { useSessionStore } from '../../store/sessionStore';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
 
-const TRANSFER_WINDOW_SEC = 10;
-
-type FrozenImpulseSnapshot = {
-  deltaVMps: number;
-  contactTimeS: number;
-  peakMagnitudeMs2: number | null;
-  referenceG: number;
-};
-
 export default function ParachuteScreen() {
+  return (
+    <ActivityErrorBoundary>
+      <ParachuteScreenInner />
+    </ActivityErrorBoundary>
+  );
+}
+
+function ParachuteScreenInner() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const teamName = useSessionStore((s) => s.teamName);
   const studentFirstName = useSessionStore((s) => s.studentFirstName);
   const gradeLevel = useSessionStore((s) => s.gradeLevel);
+  const teamId = useSessionStore((s) => s.teamId);
+  const studentId = useSessionStore((s) => s.studentId);
+  const scopeKey = parachuteScopeKey(teamId, studentId);
+  const setDraft = useParachuteDraftStore((s) => s.setDraft);
+  const clearDraft = useParachuteDraftStore((s) => s.clearDraft);
 
   const [state, setState] = useState<ChallengeState>(createInitialChallengeState);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const activeTab = state.tabs[state.activeTab];
 
   const sessionTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fallTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fallStartRef = useRef<number | null>(null);
+  const draftSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fallElapsed, setFallElapsed] = useState(0);
   const [fallRunning, setFallRunning] = useState(false);
-
-  const { recordingDisabled } = useRecordingGate();
-  const cam = useCameraRecorder({ maxDurationSec: 120, frameSampleHz: 120 });
-  const location = useLocation();
-
-  const dm = useDeviceMotionLinearAccel();
-  const accelRaw = useAccelerometer();
-  const useDmStream = !dm.motionDenied && dm.available === true;
-  const plotX = useDmStream ? dm.x : accelRaw.x;
-  const plotY = useDmStream ? dm.y : accelRaw.y;
-  const plotZ = useDmStream ? dm.z : accelRaw.z;
-  const plotMagLive = useDmStream ? dm.magnitude : accelRaw.magnitude;
-  const impulseSamples: AccelTimelineSample[] = useDmStream ? dm.buffer : accelRaw.buffer;
-  const impulse = useMemo(() => estimateImpactImpulse(impulseSamples), [impulseSamples]);
-
   const [showLiveGraphs, setShowLiveGraphs] = useState(false);
-  const [transferSecsLeft, setTransferSecsLeft] = useState(0);
-  const [frozenImpulse, setFrozenImpulse] = useState<FrozenImpulseSnapshot | null>(null);
-  const transferTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [savingLocal, setSavingLocal] = useState(false);
 
+  const location = useLocation();
   const calc = useMemo(() => activeTabCalc(state), [state]);
   const allRuns = useMemo(() => summarizeAllRuns(state), [state]);
 
@@ -114,20 +103,45 @@ export default function ParachuteScreen() {
     }
   };
 
-  const clearTransferTicker = () => {
-    if (transferTickRef.current != null) {
-      clearInterval(transferTickRef.current);
-      transferTickRef.current = null;
-    }
-  };
-
   useEffect(() => {
+    const applyDraft = () => {
+      const restored = useParachuteDraftStore.getState().getDraftForScope(scopeKey);
+      if (restored) {
+        setState(restored);
+        setDraftRestored(true);
+      }
+      setHydrated(true);
+    };
+
+    if (useParachuteDraftStore.persist.hasHydrated()) {
+      applyDraft();
+    } else {
+      const unsub = useParachuteDraftStore.persist.onFinishHydration(applyDraft);
+      return () => {
+        unsub();
+        clearSessionTick();
+        clearFallTick();
+        if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
+      };
+    }
+
     return () => {
       clearSessionTick();
       clearFallTick();
-      clearTransferTicker();
+      if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
     };
-  }, []);
+  }, [scopeKey]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
+    draftSaveRef.current = setTimeout(() => {
+      setDraft(scopeKey, state);
+    }, 500);
+    return () => {
+      if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
+    };
+  }, [hydrated, scopeKey, setDraft, state]);
 
   useEffect(() => {
     if (state.sessionTimer.running) {
@@ -173,6 +187,67 @@ export default function ParachuteScreen() {
     }));
   };
 
+  const startNewSession = () => {
+    Alert.alert(
+      'Start new session?',
+      'This clears all tabs, videos, and reflection for this challenge. Saved or uploaded results are not affected.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'New session',
+          style: 'destructive',
+          onPress: () => {
+            clearDraft();
+            setState(createInitialChallengeState());
+            setDraftRestored(false);
+            setFallElapsed(0);
+            setFallRunning(false);
+            clearFallTick();
+            fallStartRef.current = null;
+          },
+        },
+      ],
+    );
+  };
+
+  const handleVideoRecorded = useCallback(
+    async (videoUri: string) => {
+      const stableUri = await persistDraftVideo(videoUri, scopeKey, state.activeTab);
+      updateTab(state.activeTab, { videoUri: stableUri ?? videoUri });
+    },
+    [scopeKey, state.activeTab, updateTab],
+  );
+
+  const applySensorEstimate = useCallback((estimate: SensorImpulseFill) => {
+    setState((s) => {
+      const tabKey = s.activeTab;
+      const tab = s.tabs[tabKey];
+      const height = parsePositive(tab.dropHeightM);
+      const impact = parsePositive(estimate.impactSpeedMps);
+      const hasStopwatch = parsePositive(tab.recordedFallTimeS) != null;
+
+      const partial: Partial<TabData> = {
+        contactTimeS: estimate.contactTimeS,
+      };
+
+      if (!hasStopwatch && height != null && impact != null && impact > 0) {
+        partial.recordedFallTimeS = (height / impact).toFixed(2);
+      }
+
+      if (!s.primaryMode) {
+        partial.gForcePath = 'noBounce';
+      }
+
+      return {
+        ...s,
+        tabs: {
+          ...s.tabs,
+          [tabKey]: { ...tab, ...partial },
+        },
+      };
+    });
+  }, []);
+
   const startFall = () => {
     clearFallTick();
     fallStartRef.current = performance.now();
@@ -196,60 +271,6 @@ export default function ParachuteScreen() {
     fallStartRef.current = null;
   };
 
-  const toggleRecording = async () => {
-    try {
-      if (cam.isRecording) {
-        await cam.stop();
-        if (cam.lastClipUri) {
-          updateTab(state.activeTab, { videoUri: cam.lastClipUri });
-        }
-      } else {
-        await cam.start();
-      }
-    } catch {
-      /* cam.error surfaced below */
-    }
-  };
-
-  const applyEstimate = () => {
-    const dv = impulse.deltaVMps;
-    const ct = impulse.contactTimeS;
-    if (dv != null && ct != null && ct > 0) {
-      updateTab(state.activeTab, {
-        recordedFallTimeS: dv.toFixed(2),
-        contactTimeS: ct.toFixed(3),
-      });
-      const refG = gForceNoBounce(dv, ct);
-      setFrozenImpulse({
-        deltaVMps: dv,
-        contactTimeS: ct,
-        peakMagnitudeMs2: impulse.peakMagnitudeMs2,
-        referenceG: refG,
-      });
-      clearTransferTicker();
-      setTransferSecsLeft(TRANSFER_WINDOW_SEC);
-      transferTickRef.current = setInterval(() => {
-        setTransferSecsLeft((s) => {
-          if (s <= 1) {
-            clearTransferTicker();
-            setFrozenImpulse(null);
-            return 0;
-          }
-          return s - 1;
-        });
-      }, 1000);
-      void AccessibilityInfo.isScreenReaderEnabled()
-        .then((on) => {
-          if (on) {
-            AccessibilityInfo.announceForAccessibility(
-              `${TRANSFER_WINDOW_SEC} second window for copied sensor estimate`,
-            );
-          }
-        })
-        .catch(() => {});
-    }
-  };
-
   const uploadResults = async () => {
     setState((s) => ({ ...s, uploadStatus: 'uploading', uploadError: null }));
     try {
@@ -267,6 +288,7 @@ export default function ParachuteScreen() {
           : null,
       );
       await submitParachuteActivity(payload);
+      clearDraft();
       setState((s) => ({ ...s, uploadStatus: 'success', uploadError: null }));
     } catch (e) {
       setState((s) => ({
@@ -294,14 +316,12 @@ export default function ParachuteScreen() {
           tabs: state.tabs,
         },
       });
+      clearDraft();
       router.push(`/results/${sessionId}`);
     } finally {
       setSavingLocal(false);
     }
   };
-
-  const canApply =
-    impulse.deltaVMps != null && impulse.contactTimeS != null && impulse.contactTimeS > 0;
 
   const styles = useThemedStyles((t) => ({
     ...activityScreenStyles(t),
@@ -342,18 +362,22 @@ export default function ParachuteScreen() {
       borderBottomWidth: 1,
       borderBottomColor: t.colors.border,
     },
+    toggleRowHighlight: {
+      backgroundColor: t.colors.readoutBg,
+      borderRadius: t.radii.md,
+      paddingHorizontal: t.spacing.sm,
+      paddingVertical: t.spacing.md,
+      marginBottom: t.spacing.md,
+      borderWidth: 1,
+      borderColor: t.colors.border,
+      borderBottomWidth: 1,
+    },
     toggleLabel: {
       flex: 1,
       paddingRight: t.spacing.md,
       fontSize: t.typography.body,
       fontWeight: '600' as const,
       color: t.colors.text,
-    },
-    preview: {
-      height: 220,
-      borderRadius: t.radii.md,
-      marginVertical: t.spacing.sm,
-      overflow: 'hidden' as const,
     },
     banner: {
       padding: t.spacing.sm,
@@ -364,46 +388,28 @@ export default function ParachuteScreen() {
       backgroundColor: t.colors.readoutBg,
     },
     bannerErr: { borderColor: t.colors.danger },
+    draftBanner: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      padding: t.spacing.sm,
+      marginBottom: t.spacing.sm,
+      borderRadius: t.radii.md,
+      borderWidth: 1,
+      borderColor: t.colors.accent,
+      backgroundColor: t.colors.readoutBg,
+    },
+    draftBannerText: {
+      flex: 1,
+      fontSize: t.typography.caption,
+      color: t.colors.text,
+      marginRight: t.spacing.sm,
+    },
     graphToggleHint: {
       fontSize: t.typography.caption,
       color: t.colors.muted,
       marginBottom: t.spacing.md,
       lineHeight: 18,
-    },
-    transferBanner: {
-      marginTop: t.spacing.md,
-      marginBottom: t.spacing.sm,
-      padding: t.spacing.md,
-      borderRadius: t.radii.md,
-      borderWidth: 1,
-      borderColor: t.colors.border,
-      backgroundColor: t.colors.readoutBg,
-    },
-    transferTitle: {
-      fontSize: t.typography.caption,
-      fontWeight: '800' as const,
-      color: t.colors.accent,
-      marginBottom: t.spacing.xs,
-      letterSpacing: 0.4,
-      textTransform: 'uppercase' as const,
-    },
-    transferCountdown: {
-      fontSize: t.typography.subtitle,
-      fontWeight: '800' as const,
-      color: t.colors.text,
-      marginBottom: t.spacing.sm,
-    },
-    transferBody: {
-      fontSize: t.typography.caption,
-      color: t.colors.muted,
-      marginBottom: t.spacing.sm,
-      lineHeight: 18,
-    },
-    transferNumbers: {
-      fontSize: t.typography.body,
-      fontWeight: '600' as const,
-      color: t.colors.text,
-      lineHeight: 22,
     },
   }));
 
@@ -413,6 +419,15 @@ export default function ParachuteScreen() {
         <Text style={styles.countdown} accessibilityLiveRegion="polite">
           Session {formatSessionTime(state.sessionTimer.secsLeft)}
         </Text>
+        {draftRestored ? (
+          <View style={styles.draftBanner}>
+            <Text style={styles.draftBannerText}>
+              Draft restored — continue where you left off.
+            </Text>
+            <Button title="Dismiss" variant="secondary" onPress={() => setDraftRestored(false)} />
+          </View>
+        ) : null}
+
         <View style={styles.actions}>
           <Button
             title="Start"
@@ -426,7 +441,8 @@ export default function ParachuteScreen() {
             onPress={pauseSession}
             disabled={!state.sessionTimer.running}
           />
-          <Button title="Reset" variant="secondary" onPress={resetSession} />
+          <Button title="Reset timer" variant="secondary" onPress={resetSession} />
+          <Button title="New session" variant="secondary" onPress={startNewSession} />
         </View>
 
         <Text style={styles.meta}>
@@ -513,17 +529,7 @@ export default function ParachuteScreen() {
             onContactTimeFromVideo={(contactTimeS) => updateTab(state.activeTab, { contactTimeS })}
           />
         ) : (
-          <>
-            {cam.error ? <Text style={{ color: colors.danger }}>{cam.error}</Text> : null}
-            <CameraView ref={cam.cameraRef} style={styles.preview} mode="video" facing="back" />
-            <Button
-              title={cam.isRecording ? 'Stop Recording' : 'Start Recording'}
-              variant="accent"
-              onPress={() => void toggleRecording()}
-              disabled={recordingDisabled && !cam.isRecording}
-              style={{ minHeight: 56 }}
-            />
-          </>
+          <ParachuteCameraSection onRecorded={(videoUri) => void handleVideoRecorded(videoUri)} />
         )}
 
         {activeTab.videoUri ? (
@@ -605,13 +611,14 @@ export default function ParachuteScreen() {
           </View>
         ) : null}
 
-        <View style={styles.toggleRow}>
+        <View style={[styles.toggleRow, styles.toggleRowHighlight]}>
           <Text style={styles.toggleLabel}>Advanced sensors — live acceleration graphs</Text>
           <Switch
             value={showLiveGraphs}
             onValueChange={setShowLiveGraphs}
-            trackColor={{ false: colors.border, true: colors.accentMuted }}
-            thumbColor={showLiveGraphs ? colors.accent : colors.surface}
+            trackColor={{ false: '#64748B', true: colors.accent }}
+            thumbColor={showLiveGraphs ? colors.textInverse : '#E2E8F0'}
+            ios_backgroundColor="#64748B"
           />
         </View>
 
@@ -622,40 +629,11 @@ export default function ParachuteScreen() {
         ) : null}
 
         {showLiveGraphs ? (
-          <>
-            {!useDmStream ? (
-              <Text style={styles.p}>
-                Charts show raw accelerometer until DeviceMotion is available.
-                {dm.motionDenied ? ' Motion permission denied.' : ''}
-              </Text>
-            ) : null}
-            <LinearAccelCharts x={plotX} y={plotY} z={plotZ} />
-            <StatReadout
-              label="Sensor rate (Hz)"
-              value={(useDmStream ? dm.hz : accelRaw.hz).toFixed(0)}
-            />
-            <StatReadout label="Live |a|" value={plotMagLive.toFixed(2)} />
-            <StatReadout label="Δv est. (m/s)" value={fmtOpt(impulse.deltaVMps, 3)} />
-            <StatReadout label="Contact est. (s)" value={fmtOpt(impulse.contactTimeS, 3)} />
-            <StatReadout label="Peak |a| (m/s²)" value={fmtOpt(impulse.peakMagnitudeMs2, 1)} />
-            <Button
-              title="Fill from sensor estimate"
-              variant="secondary"
-              onPress={applyEstimate}
-              disabled={!canApply}
-            />
-            {frozenImpulse !== null && transferSecsLeft > 0 ? (
-              <View style={styles.transferBanner}>
-                <Text style={styles.transferTitle}>Captured from sensor</Text>
-                <Text style={styles.transferCountdown}>{transferSecsLeft}s left</Text>
-                <Text style={styles.transferNumbers}>
-                  Δv: {frozenImpulse.deltaVMps.toFixed(3)} m/s{'\n'}
-                  Contact: {frozenImpulse.contactTimeS.toFixed(3)} s{'\n'}
-                  Ref. g: {frozenImpulse.referenceG.toFixed(2)} g
-                </Text>
-              </View>
-            ) : null}
-          </>
+          <ParachuteAdvancedSensors
+            dropHeightM={activeTab.dropHeightM}
+            recordedFallTimeS={activeTab.recordedFallTimeS}
+            onApplyEstimate={applySensorEstimate}
+          />
         ) : null}
 
         <View style={styles.actions}>
@@ -680,9 +658,4 @@ export default function ParachuteScreen() {
       </ActivityCard>
     </ExperimentScreen>
   );
-}
-
-function fmtOpt(n: number | null, decimals: number): string {
-  if (n == null || !Number.isFinite(n)) return '—';
-  return n.toFixed(decimals);
 }

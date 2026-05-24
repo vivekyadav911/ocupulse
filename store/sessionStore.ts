@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { UserRole } from '../services/db/types';
 
 export type GradeLevel =
   | 'Year 3'
@@ -23,19 +24,31 @@ export type ActivityType =
   | 'breathing';
 
 type SessionState = {
+  role: UserRole | null;
   teamId: string | null;
   studentId: string | null;
+  managedTeamIds: string[];
+  activeTeamId: string | null;
   teamName: string;
   studentFirstName: string;
   gradeLevel: GradeLevel;
   profileReady: boolean;
   currentActivity: ActivityType | null;
   currentSessionId: string | null;
+  setRole: (role: UserRole | null) => void;
   setTeam: (
     t: Partial<
       Pick<
         SessionState,
-        'teamName' | 'studentFirstName' | 'gradeLevel' | 'teamId' | 'studentId' | 'profileReady'
+        | 'teamName'
+        | 'studentFirstName'
+        | 'gradeLevel'
+        | 'teamId'
+        | 'studentId'
+        | 'profileReady'
+        | 'role'
+        | 'managedTeamIds'
+        | 'activeTeamId'
       >
     >,
   ) => void;
@@ -48,21 +61,28 @@ type SessionState = {
 export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
+      role: null,
       teamId: null,
       studentId: null,
+      managedTeamIds: [],
+      activeTeamId: null,
       teamName: 'Demo Team',
       studentFirstName: 'Student',
       gradeLevel: 'Year 6',
       profileReady: false,
       currentActivity: null,
       currentSessionId: null,
+      setRole: (role) => set({ role }),
       setTeam: (partial) => set(partial),
       setActivity: (currentActivity) => set({ currentActivity }),
       setSessionId: (currentSessionId) => set({ currentSessionId }),
       resetProfile: () =>
         set({
+          role: null,
           teamId: null,
           studentId: null,
+          managedTeamIds: [],
+          activeTeamId: null,
           teamName: 'Demo Team',
           studentFirstName: 'Student',
           profileReady: false,

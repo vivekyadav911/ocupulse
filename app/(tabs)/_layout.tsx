@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 import { useEffect } from 'react';
-import { Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { useBattery } from '../../hooks/useBattery';
-import { isFirebaseConfigured } from '../../services/firebase';
+import { resolveAuthRedirect } from '../../lib/authRouting';
 import { useAuthStore } from '../../store/authStore';
 import { useSessionStore } from '../../store/sessionStore';
 import { useAppTheme } from '../../theme/useAppTheme';
@@ -81,6 +81,12 @@ function TabsLayoutInner() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="student/[studentId]"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
     </View>
   );
@@ -88,21 +94,27 @@ function TabsLayoutInner() {
 
 export default function TabsLayout() {
   const user = useAuthStore((s) => s.user);
-  const quickJoin = useAuthStore((s) => s.quickJoinActive);
+  const profileHydrated = useAuthStore((s) => s.profileHydrated);
+  const role = useSessionStore((s) => s.role);
   const profileReady = useSessionStore((s) => s.profileReady);
-  const firebaseReady = isFirebaseConfigured();
 
-  if (user === undefined) return null;
+  if (user === undefined || !profileHydrated) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
-  if (!firebaseReady && quickJoin) {
-    return <TabsLayoutInner />;
+  const redirect = resolveAuthRedirect({ user, role, profileReady, hydrated: true });
+  if (redirect === 'loading') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
-  if (!user) {
-    return <Redirect href="/(auth)/login" />;
-  }
-  if (user.isAnonymous && !profileReady) {
-    return <Redirect href="/(auth)/student-setup" />;
-  }
+  if (redirect) return <Redirect href={redirect} />;
 
   return <TabsLayoutInner />;
 }

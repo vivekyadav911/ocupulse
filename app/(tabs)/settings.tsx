@@ -15,9 +15,8 @@ const GRADES: GradeLevel[] = ['Year 4', 'Year 6', 'Year 9', 'High School'];
 export default function SettingsScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const setQuickJoin = useAuthStore((s) => s.setQuickJoinActive);
   const { mode, toggle } = useThemeStore();
-  const { teamName, studentFirstName, gradeLevel, setTeam, resetProfile } = useSessionStore();
+  const { role, teamName, studentFirstName, gradeLevel, setTeam, resetProfile } = useSessionStore();
   const styles = useThemedStyles((t) => ({
     label: {
       marginTop: t.spacing.md,
@@ -40,35 +39,41 @@ export default function SettingsScreen() {
   };
 
   const logout = async () => {
-    setQuickJoin(false);
     resetProfile();
     await signOutUser();
     useSessionStore.persist.clearStorage();
     router.replace('/(auth)/login');
   };
 
-  const authLabel =
-    user?.email ??
-    (user?.isAnonymous ? 'Student (anonymous)' : user ? 'Signed in' : 'Not signed in');
+  const roleLabel = role === 'teacher' ? 'Teacher' : role === 'student' ? 'Student' : '—';
 
   return (
     <ScreenShell>
       <PageTitle title="Settings" />
       <Card bordered style={styles.card}>
         <Text style={styles.label}>Account</Text>
-        <Text style={styles.now}>{authLabel}</Text>
+        <Text style={styles.now}>Role: {roleLabel}</Text>
+        <Text style={styles.now}>
+          Email:{' '}
+          {user?.email ??
+            (user?.isAnonymous ? 'Anonymous (quick join)' : user ? 'Signed in' : 'Not signed in')}
+        </Text>
         <Text style={styles.label}>Appearance</Text>
         <Text style={styles.now}>Theme: {mode}</Text>
         <Button title="Toggle dark / light" variant="secondary" onPress={toggle} />
-        <Text style={styles.label}>Grade / cohort (AdMob kid-safe gate)</Text>
-        <Text style={styles.now}>{gradeLevel}</Text>
-        {GRADES.map((g) => (
-          <Button key={g} title={g} variant="secondary" onPress={() => pickGrade(g)} />
-        ))}
+        {role === 'student' ? (
+          <>
+            <Text style={styles.label}>Grade / cohort (AdMob kid-safe gate)</Text>
+            <Text style={styles.now}>{gradeLevel}</Text>
+            {GRADES.map((g) => (
+              <Button key={g} title={g} variant="secondary" onPress={() => pickGrade(g)} />
+            ))}
+            <Text style={styles.label}>Student</Text>
+            <Text style={styles.now}>{studentFirstName}</Text>
+          </>
+        ) : null}
         <Text style={styles.label}>Team</Text>
         <Text style={styles.now}>{teamName}</Text>
-        <Text style={styles.label}>Student</Text>
-        <Text style={styles.now}>{studentFirstName}</Text>
         <Button title="Sign out" variant="danger" onPress={logout} />
       </Card>
     </ScreenShell>

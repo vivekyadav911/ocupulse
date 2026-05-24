@@ -1,6 +1,7 @@
 import { collection, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { formatLeaderboardDisplay } from '../lib/leaderboard/formatLeaderRow';
 import { mergeLeaderRows } from '../lib/leaderboard/mergeRows';
+import { prepareLeaderboardRows } from '../lib/leaderboard/rankRows';
 import type { LeaderboardFilter, LeaderRow } from './firestore';
 import { getAllOutbox, resultsDao } from './db/sqlite';
 import { getFirestoreDb } from './firebase';
@@ -31,6 +32,8 @@ export function leaderRowFromStored(
     submittedAt,
     scoreLabel: display.scoreText,
     detail: display.detail,
+    studentFirstName:
+      payload.studentFirstName != null ? String(payload.studentFirstName) : undefined,
     lat: payload.lat != null ? Number(payload.lat) : undefined,
     lng: payload.lng != null ? Number(payload.lng) : undefined,
     peakDb: payload.peakDb != null ? Number(payload.peakDb) : undefined,
@@ -107,9 +110,7 @@ export function subscribeLeaderboard(
 
   const publish = () => {
     const merged = mergeLeaderRows(localRows, remoteRows);
-    const filtered =
-      activityType === 'all' ? merged : merged.filter((r) => r.activityType === activityType);
-    onRows(filtered.slice(0, 50));
+    onRows(prepareLeaderboardRows(merged, activityType));
   };
 
   const refreshLocal = () => {

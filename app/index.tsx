@@ -1,23 +1,28 @@
+import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { useSessionStore } from '../store/sessionStore';
-import { isFirebaseConfigured } from '../services/firebase';
+import { resolveAuthRedirect } from '../lib/authRouting';
+
+function AuthLoading() {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator size="large" />
+    </View>
+  );
+}
 
 export default function Index() {
   const user = useAuthStore((s) => s.user);
-  const quickJoin = useAuthStore((s) => s.quickJoinActive);
+  const profileHydrated = useAuthStore((s) => s.profileHydrated);
+  const role = useSessionStore((s) => s.role);
   const profileReady = useSessionStore((s) => s.profileReady);
 
-  if (user === undefined) return null;
+  if (user === undefined || !profileHydrated) return <AuthLoading />;
 
-  const firebaseReady = isFirebaseConfigured();
-  if (!firebaseReady && quickJoin) return <Redirect href="/(tabs)" />;
-
-  if (!user) return <Redirect href="/(auth)/login" />;
-
-  if (user.isAnonymous && !profileReady) {
-    return <Redirect href="/(auth)/student-setup" />;
-  }
+  const redirect = resolveAuthRedirect({ user, role, profileReady, hydrated: true });
+  if (redirect === 'loading') return <AuthLoading />;
+  if (redirect) return <Redirect href={redirect} />;
 
   return <Redirect href="/(tabs)" />;
 }

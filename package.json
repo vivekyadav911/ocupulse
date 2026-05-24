@@ -15,6 +15,7 @@
     "test": "jest",
     "a11y": "node scripts/lint-a11y.cjs",
     "secret-scan": "node scripts/secret-scan.cjs",
+    "firebase:sync-env": "node scripts/sync-firebase-env.cjs",
     "firebase:deploy-rules": "npx -y firebase-tools@latest deploy --only firestore:rules",
     "prepare": "husky || true"
   },
@@ -27,6 +28,7 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.4.1",
+    "@react-native-community/slider": "5.0.1",
     "expo": "~54.0.33",
     "expo-av": "~16.0.8",
     "expo-background-fetch": "~14.0.9",
@@ -46,6 +48,7 @@
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
     "expo-task-manager": "~14.0.9",
+    "expo-video": "~3.0.16",
     "firebase": "^12.13.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

@@ -20,7 +20,7 @@ function permissionLabel(
 
 export default function CameraSpike() {
   const { recordingDisabled } = useRecordingGate();
-  const cam = useCameraRecorder({ maxDurationSec: 10, frameSampleHz: 120 });
+  const cam = useCameraRecorder({ maxDurationSec: 10, frameSampleHz: 120, recordAudio: false });
   const styles = useThemedStyles((t) => ({
     wrap: { flex: 1, padding: t.spacing.md },
     title: { fontSize: 18, fontWeight: '800', marginBottom: t.spacing.sm, color: t.colors.text },
@@ -59,16 +59,14 @@ export default function CameraSpike() {
   const onRequestPermissions = async () => {
     const ok = await cam.requestPermissions();
     if (ok) {
-      showAlert('Ready', 'Camera and microphone are enabled. Tap Record to test.');
+      showAlert('Ready', 'Camera permission is enabled. Tap Record to test.');
       return;
     }
-    const blocked =
-      cam.cameraPermission?.canAskAgain === false ||
-      cam.microphonePermission?.canAskAgain === false;
+    const blocked = cam.cameraPermission?.canAskAgain === false;
     if (blocked) {
       showAlert(
         'Permission blocked',
-        'Enable Camera and Microphone for Ocupulse in system Settings, then return here.',
+        'Enable Camera for Ocupulse in system Settings, then return here.',
       );
     }
   };
@@ -87,8 +85,7 @@ export default function CameraSpike() {
   };
 
   const showPreview = Boolean(cam.cameraPermission?.granted);
-  const needsSettings =
-    cam.cameraPermission?.canAskAgain === false || cam.microphonePermission?.canAskAgain === false;
+  const needsSettings = cam.cameraPermission?.canAskAgain === false;
 
   return (
     <View style={styles.wrap}>
@@ -100,7 +97,7 @@ export default function CameraSpike() {
       {cam.error ? <Text style={styles.err}>{cam.error}</Text> : null}
       {needsSettings ? (
         <Pressable onPress={openSettings} accessibilityRole="link">
-          <Text style={styles.settingsLink}>Open system Settings → enable Camera & Microphone</Text>
+          <Text style={styles.settingsLink}>Open system Settings → enable Camera</Text>
         </Pressable>
       ) : null}
       <View style={styles.preview}>
@@ -110,15 +107,21 @@ export default function CameraSpike() {
             style={{ flex: 1, width: '100%' }}
             mode="video"
             facing="back"
+            mute
+            onCameraReady={cam.onCameraReady}
+            onMountError={cam.onMountError}
           />
         ) : (
           <Text style={styles.previewPlaceholder}>
             {cam.permissionsLoading
               ? 'Checking permissions…'
-              : 'Allow camera and microphone to see the live preview.\n\nTap “Request permissions” below.'}
+              : 'Allow camera access to see the live preview.\n\nTap “Request permissions” below.'}
           </Text>
         )}
       </View>
+      {showPreview && !cam.isCameraReady ? (
+        <Text style={styles.meta}>Starting camera preview…</Text>
+      ) : null}
       <Text style={styles.meta}>Frame timestamps: {cam.frameTimes.length}</Text>
       <Text style={styles.meta} numberOfLines={1}>
         Last clip: {cam.lastClipUri ?? '—'}
@@ -130,10 +133,11 @@ export default function CameraSpike() {
         disabled={cam.permissionsLoading}
       />
       <Button
-        title={cam.isRecording ? 'Stop (1s+ for 120 frames)' : 'Record'}
+        title={cam.isRecording ? 'Stop (1.5s+ for 120 frames)' : 'Record'}
         onPress={() => void toggle()}
         disabled={
-          (recordingDisabled && !cam.isRecording) || !cam.hasPermission || cam.permissionsLoading
+          (recordingDisabled && !cam.isRecording) ||
+          (!cam.isRecording && (!cam.isCameraReady || !cam.hasPermission))
         }
       />
       {Platform.OS === 'ios' ? (

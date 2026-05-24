@@ -11,31 +11,45 @@ import { onAuthChange } from '../services/auth';
 import { runMigrations } from '../services/db/sqlite';
 import { hydrateProfileFromCloud } from '../services/profiles';
 import { syncAll } from '../services/sync';
+import { clearStaleOutboxRows } from '../services/firestore';
 import { ensureNotificationPermissions, scheduleStreakReminder } from '../services/notifications';
 
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { useAuthStore } from '../store/authStore';
 import { useSessionStore } from '../store/sessionStore';
 
-async function applyProfileForUser(uid: string, isAnonymous: boolean) {
-  const hydrated = await hydrateProfileFromCloud(uid);
-  if (hydrated.profileReady) {
-    useSessionStore.getState().setTeam({
-      profileReady: true,
+async function applyProfileForUser(uid: string) {
+  const { setProfileHydrated } = useAuthStore.getState();
+  setProfileHydrated(false);
+  try {
+    const hydrated = await hydrateProfileFromCloud(uid);
+    const store = useSessionStore.getState();
+
+    if (hydrated.role) {
+      store.setRole(hydrated.role);
+    }
+
+    store.setTeam({
+      profileReady: hydrated.profileReady,
       teamId: hydrated.teamId ?? null,
       studentId: hydrated.studentId ?? null,
-      teamName: hydrated.teamName ?? useSessionStore.getState().teamName,
-      studentFirstName: hydrated.studentFirstName ?? useSessionStore.getState().studentFirstName,
+      teamName: hydrated.teamName ?? store.teamName,
+      studentFirstName: hydrated.studentFirstName ?? store.studentFirstName,
+      managedTeamIds: hydrated.managedTeamIds ?? [],
+      activeTeamId: hydrated.activeTeamId ?? hydrated.teamId ?? null,
+      role: hydrated.role ?? store.role,
     });
-    return;
-  }
-  if (!isAnonymous) {
-    useSessionStore.getState().setTeam({ profileReady: true });
+  } catch (e) {
+    console.warn('[Ocupulse] profile hydration failed', e);
+    useSessionStore.getState().setTeam({ profileReady: false });
+  } finally {
+    setProfileHydrated(true);
   }
 }
 
 export default function RootLayout() {
   const setUser = useAuthStore((s) => s.setUser);
+  const setProfileHydrated = useAuthStore((s) => s.setProfileHydrated);
   const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
@@ -48,6 +62,7 @@ export default function RootLayout() {
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       }
       await runMigrations();
+      await clearStaleOutboxRows();
       setDbReady(true);
       await registerBackgroundSync();
       await ensureNotificationPermissions();
@@ -56,19 +71,27 @@ export default function RootLayout() {
       unsubAuth = onAuthChange((u) => {
         setUser(u);
         if (u) {
-          void applyProfileForUser(u.uid, u.isAnonymous);
-          void syncAll();
+          void applyProfileForUser(u.uid).then(() => {
+            void syncAll();
+          });
         } else {
           useSessionStore.getState().resetProfile();
+          setProfileHydrated(true);
         }
       });
 
       timeout = setTimeout(() => {
-        if (useAuthStore.getState().user === undefined) setUser(null);
-      }, 1200);
+        const auth = useAuthStore.getState();
+        if (auth.user === undefined) {
+          auth.setUser(null);
+          auth.setProfileHydrated(true);
+        }
+      }, 1500);
 
       unsubNet = NetInfo.addEventListener((s) => {
-        if (s.isConnected) void syncAll();
+        if (!s.isConnected) return;
+        const { user, profileHydrated } = useAuthStore.getState();
+        if (user && profileHydrated) void syncAll();
       });
     })();
 
@@ -77,7 +100,7 @@ export default function RootLayout() {
       unsubAuth();
       unsubNet();
     };
-  }, [setUser]);
+  }, [setUser, setProfileHydrated]);
 
   if (!dbReady) {
     return (

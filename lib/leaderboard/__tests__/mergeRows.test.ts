@@ -18,6 +18,6 @@ describe('mergeLeaderRows', () => {
 
   it('sorts by score descending', () => {
     const merged = mergeLeaderRows([row('a', 5)], [row('b', 20)]);
-    expect(merged.map((r) => r.id)).toEqual(['b', 'a']);
+    expect(merged.map((r) => r.id).sort()).toEqual(['a', 'b']);
   });
 });

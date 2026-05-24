@@ -1,5 +1,6 @@
 import { doc, setDoc, type DocumentReference } from 'firebase/firestore';
-import { getCurrentUser } from './auth';
+import { getCurrentUser, getUserProfile } from './auth';
+import { getTeamTeacherId } from './profiles';
 import {
   deleteOutboxIds,
   getAllOutbox,
@@ -18,6 +19,8 @@ export type LeaderRow = {
   submittedAt?: number;
   scoreLabel?: string;
   detail?: string;
+  studentId?: string;
+  studentFirstName?: string;
   lat?: number;
   lng?: number;
   peakDb?: number;
@@ -56,23 +59,83 @@ export async function flushOutboxRow(
   }
 }
 
+function isPermissionDenied(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    String((error as { code: string }).code).includes('permission-denied')
+  );
+}
+
 /** Flush all pending SQLite outbox rows to Firestore (offline-first). */
 export async function syncOutbox(): Promise<void> {
   const rows = await getAllOutbox();
   if (!rows.length) return;
   const db = getFirestoreDb();
   if (!db) return;
-  const done: number[] = [];
+
+  const user = getCurrentUser();
+  const profile = user ? await getUserProfile(user.uid) : null;
+  const uid = user?.uid ?? null;
+  const canSyncScores = profile?.role === 'student' && Boolean(uid);
+
+  const synced: number[] = [];
+  const dropped: number[] = [];
+
   for (const r of rows) {
+    const isScoreOrSession = r.path.startsWith('scores/') || r.path.startsWith('sessions/');
+
+    if (isScoreOrSession && !canSyncScores) {
+      dropped.push(r.id);
+      continue;
+    }
+
     try {
       const payload = JSON.parse(r.payload) as Record<string, unknown>;
+      if (isScoreOrSession && uid) {
+        if (r.path.startsWith('scores/')) payload.userId = uid;
+        if (r.path.startsWith('sessions/')) payload.createdBy = uid;
+      }
       await flushOutboxRow(r.path, payload);
-      done.push(r.id);
+      synced.push(r.id);
     } catch (e) {
-      console.warn('[Ocupulse] syncOutbox failed for row', r.id, e);
+      if (isPermissionDenied(e)) {
+        dropped.push(r.id);
+      } else {
+        console.warn('[Ocupulse] syncOutbox failed for row', r.id, e);
+      }
     }
   }
-  await deleteOutboxIds(done);
+
+  await deleteOutboxIds([...synced, ...dropped]);
+}
+
+/** Remove orphaned score/session rows that cannot sync (e.g. from old sessions). */
+export async function clearStaleOutboxRows(): Promise<void> {
+  const rows = await getAllOutbox();
+  if (!rows.length) return;
+
+  const user = getCurrentUser();
+  const profile = user ? await getUserProfile(user.uid) : null;
+  const canSyncScores = profile?.role === 'student' && Boolean(user?.uid);
+
+  const stale = rows
+    .filter(
+      (r) =>
+        r.path.startsWith('scores/') ||
+        r.path.startsWith('sessions/') ||
+        (!user && (r.path.startsWith('teams/') || r.path.includes('/students/'))),
+    )
+    .filter((r) => {
+      if (r.path.startsWith('scores/') || r.path.startsWith('sessions/')) {
+        return !canSyncScores;
+      }
+      return !user;
+    })
+    .map((r) => r.id);
+
+  if (stale.length) await deleteOutboxIds(stale);
 }
 
 export async function writeSessionOptimistic(input: {
@@ -90,6 +153,7 @@ export async function writeSessionOptimistic(input: {
   const userId = input.userId ?? user?.uid ?? null;
   const submittedAt = Date.now();
   const teamName = input.teamName.trim() || 'Demo Team';
+  const teacherId = await getTeamTeacherId(input.teamId ?? null);
 
   await sessionsDao.insert({
     id,
@@ -127,6 +191,7 @@ export async function writeSessionOptimistic(input: {
     teamId: input.teamId ?? null,
     studentId: input.studentId ?? null,
     userId,
+    teacherId,
     sessionId: id,
     mediaUrls: input.mediaUrls ?? [],
     updatedAt: submittedAt,
@@ -136,6 +201,7 @@ export async function writeSessionOptimistic(input: {
   await insertOutbox(`sessions/${id}`, {
     teamId: input.teamId ?? null,
     studentId: input.studentId ?? null,
+    teacherId,
     activityType: input.activityType,
     startTime: submittedAt,
     createdBy: userId,

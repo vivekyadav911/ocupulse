@@ -2,17 +2,17 @@ import type { User } from 'firebase/auth';
 import { create } from 'zustand';
 
 type AuthState = {
+  /** `undefined` = Firebase auth listener has not fired yet. */
   user: User | null | undefined;
+  /** Firestore profile applied to sessionStore for the current user. */
+  profileHydrated: boolean;
   setUser: (u: User | null | undefined) => void;
-  /** Local testing entry — no Firebase Auth; cleared on sign-out. */
-  quickJoinActive: boolean;
-  setQuickJoinActive: (v: boolean) => void;
+  setProfileHydrated: (hydrated: boolean) => void;
 };
 
-/** `undefined` = still hydrating from persistence. */
 export const useAuthStore = create<AuthState>((set) => ({
   user: undefined,
+  profileHydrated: false,
   setUser: (user) => set({ user }),
-  quickJoinActive: false,
-  setQuickJoinActive: (quickJoinActive) => set({ quickJoinActive }),
+  setProfileHydrated: (profileHydrated) => set({ profileHydrated }),
 }));

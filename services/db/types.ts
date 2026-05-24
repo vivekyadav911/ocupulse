@@ -7,6 +7,8 @@ export type UserProfile = {
   email?: string;
   teamId?: string;
   studentId?: string;
+  managedTeamIds?: string[];
+  profileReady?: boolean;
   createdAt: number;
   updatedAt: number;
 };

@@ -1,6 +1,6 @@
-import { Video, type AVPlaybackStatus } from 'expo-av';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutChangeEvent, PanResponder, Pressable, Text, View } from 'react-native';
 import Svg, { Line, Rect, Text as SvgText } from 'react-native-svg';
 import {
   contactTimeFromFrames,
@@ -15,14 +15,18 @@ import {
 } from '../lib/calc/parachuteCalc';
 import type { GForcePath } from '../lib/parachute/challengeState';
 import { normalizeClipUri } from '../lib/camera/normalizeClipUri';
+import { useSlowMotionVideoPlayer } from '../hooks/useSlowMotionVideoPlayer';
 import { activityScreenStyles } from '../theme/activityScreenStyles';
 import { useAppTheme } from '../theme/useAppTheme';
 import { useThemedStyles } from '../theme/themedStyles';
 import { Button } from './Button';
 import { FormField } from './FormField';
+import { FrameScrubber } from './FrameScrubber';
 import { StatReadout } from './StatReadout';
 
-const FRAME_MS = 1000 / SLOW_MO_FPS;
+function formatTimeS(frame: number): string {
+  return `${(frame / SLOW_MO_FPS).toFixed(2)}s`;
+}
 
 export type ParachuteSlowMotionReviewProps = {
   videoUri: string;
@@ -62,9 +66,30 @@ export function ParachuteSlowMotionReview({
   onContactTimeFromVideo,
 }: ParachuteSlowMotionReviewProps) {
   const { colors } = useAppTheme();
-  const videoRef = useRef<Video>(null);
-  const [totalFrames, setTotalFrames] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
+  const clipUri = normalizeClipUri(videoUri);
+  const isScrubbingRef = useRef(false);
+  const [displayFrame, setDisplayFrame] = useState(currentFrame);
+  const [timelineWidth, setTimelineWidth] = useState(0);
+
+  const handleFrameChange = useCallback(
+    (frame: number) => {
+      setDisplayFrame(frame);
+      onFrameChange(frame);
+    },
+    [onFrameChange],
+  );
+
+  const player = useSlowMotionVideoPlayer({
+    uri: clipUri,
+    fps: SLOW_MO_FPS,
+    onFrameChange: handleFrameChange,
+  });
+
+  useEffect(() => {
+    if (!isScrubbingRef.current) {
+      setDisplayFrame(currentFrame);
+    }
+  }, [currentFrame]);
 
   const styles = useThemedStyles((t) => ({
     ...activityScreenStyles(t),
@@ -76,7 +101,7 @@ export function ParachuteSlowMotionReview({
       backgroundColor: t.colors.readoutBg,
       position: 'relative' as const,
     },
-    video: { flex: 1 },
+    video: { width: '100%' as const, height: '100%' as const },
     rulerLabel: {
       position: 'absolute' as const,
       bottom: 28,
@@ -92,25 +117,55 @@ export function ParachuteSlowMotionReview({
       color: t.colors.muted,
       marginBottom: t.spacing.sm,
     },
+    playbackRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: t.spacing.sm,
+      marginBottom: t.spacing.sm,
+    },
+    timeLabel: {
+      fontSize: t.typography.caption,
+      fontWeight: '600' as const,
+      color: t.colors.text,
+      fontFamily: 'monospace',
+      minWidth: 120,
+    },
     frameRow: {
       flexDirection: 'row' as const,
       gap: t.spacing.sm,
       marginBottom: t.spacing.sm,
     },
     timeline: {
-      height: 8,
+      height: 24,
       borderRadius: 4,
       backgroundColor: t.colors.border,
       marginBottom: t.spacing.md,
       position: 'relative' as const,
+      justifyContent: 'center' as const,
+    },
+    timelineProgress: {
+      position: 'absolute' as const,
+      left: 0,
+      top: 0,
+      bottom: 0,
+      borderRadius: 4,
+      backgroundColor: t.colors.accentMuted,
     },
     timelineDot: {
       position: 'absolute' as const,
-      top: -2,
+      top: 4,
       width: 12,
       height: 12,
       borderRadius: 6,
       marginLeft: -6,
+    },
+    playhead: {
+      position: 'absolute' as const,
+      top: 2,
+      width: 4,
+      height: 20,
+      borderRadius: 2,
+      marginLeft: -2,
     },
     pathToggle: {
       flexDirection: 'row' as const,
@@ -155,48 +210,91 @@ export function ParachuteSlowMotionReview({
       fontWeight: '600' as const,
       color: t.colors.text,
     },
+    loadingHint: {
+      fontSize: t.typography.caption,
+      color: t.colors.muted,
+      marginBottom: t.spacing.sm,
+    },
   }));
 
-  const onPlaybackStatus = useCallback(
-    (status: AVPlaybackStatus) => {
-      if (!status.isLoaded) return;
-      const dur = status.durationMillis ?? 0;
-      if (dur > 0 && dur !== durationMs) {
-        setDurationMs(dur);
-        setTotalFrames(Math.max(1, Math.floor((dur / 1000) * SLOW_MO_FPS)));
-      }
+  const maxFrame = player.maxFrame;
+  const clampedFrame = Math.max(0, Math.min(displayFrame, maxFrame));
+
+  const beginScrub = useCallback(() => {
+    isScrubbingRef.current = true;
+    player.beginScrub();
+  }, [player]);
+
+  const endScrub = useCallback(
+    (frame: number) => {
+      isScrubbingRef.current = false;
+      player.endScrub(frame);
     },
-    [durationMs],
+    [player],
   );
 
-  const seekToFrame = useCallback(
-    async (frame: number) => {
-      const clamped = Math.max(0, Math.min(frame, Math.max(totalFrames - 1, 0)));
-      onFrameChange(clamped);
-      await videoRef.current?.setPositionAsync(clamped * FRAME_MS);
+  const scrubToFrame = useCallback(
+    (frame: number) => {
+      player.scrubToFrame(frame);
     },
-    [onFrameChange, totalFrames],
+    [player],
   );
-
-  const stepFrame = (delta: number) => {
-    void seekToFrame(currentFrame + delta);
-  };
 
   const markFirst = () => {
-    onMarkFirstContact(currentFrame);
-    if (stoppedFrame != null && stoppedFrame > currentFrame) {
-      const ct = contactTimeFromFrames(currentFrame, stoppedFrame);
+    void player.pause();
+    onMarkFirstContact(clampedFrame);
+    if (stoppedFrame != null && stoppedFrame > clampedFrame) {
+      const ct = contactTimeFromFrames(clampedFrame, stoppedFrame);
       if (ct != null) onContactTimeFromVideo(ct.toFixed(2));
     }
   };
 
   const markStopped = () => {
-    onMarkStopped(currentFrame);
-    if (firstContactFrame != null && currentFrame > firstContactFrame) {
-      const ct = contactTimeFromFrames(firstContactFrame, currentFrame);
+    void player.pause();
+    onMarkStopped(clampedFrame);
+    if (firstContactFrame != null && clampedFrame > firstContactFrame) {
+      const ct = contactTimeFromFrames(firstContactFrame, clampedFrame);
       if (ct != null) onContactTimeFromVideo(ct.toFixed(2));
     }
   };
+
+  const seekFromTimelineX = useCallback(
+    (x: number, end = false) => {
+      if (timelineWidth <= 0 || maxFrame <= 0) return;
+      const ratio = Math.max(0, Math.min(x / timelineWidth, 1));
+      const frame = Math.round(ratio * maxFrame);
+      if (end) endScrub(frame);
+      else scrubToFrame(frame);
+    },
+    [endScrub, maxFrame, scrubToFrame, timelineWidth],
+  );
+
+  const timelinePan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => player.isReady,
+        onMoveShouldSetPanResponder: () => player.isReady,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: (evt) => {
+          beginScrub();
+          scrubToFrame(
+            Math.round(
+              Math.max(0, Math.min(evt.nativeEvent.locationX / timelineWidth, 1)) * maxFrame,
+            ),
+          );
+        },
+        onPanResponderMove: (evt) => {
+          seekFromTimelineX(evt.nativeEvent.locationX);
+        },
+        onPanResponderRelease: (evt) => {
+          seekFromTimelineX(evt.nativeEvent.locationX, true);
+        },
+        onPanResponderTerminate: () => {
+          isScrubbingRef.current = false;
+        },
+      }),
+    [beginScrub, maxFrame, player.isReady, scrubToFrame, seekFromTimelineX, timelineWidth],
+  );
 
   const contact = parsePositive(contactTimeS);
   const tUp = parsePositive(tUpS);
@@ -215,21 +313,26 @@ export function ParachuteSlowMotionReview({
   const activeG = gForceForPath(impactSpeedMps, contact, gForcePath, tUp);
 
   const framePct = (frame: number | null) => {
-    if (frame == null || totalFrames <= 1) return 0;
-    return (frame / (totalFrames - 1)) * 100;
+    if (frame == null || maxFrame <= 0) return 0;
+    return (frame / maxFrame) * 100;
   };
+
+  const durationLabel =
+    player.durationMs > 0 ? (player.durationMs / 1000).toFixed(2) : formatTimeS(maxFrame);
 
   return (
     <View>
       <View style={styles.videoWrap}>
         <Video
-          ref={videoRef}
-          source={{ uri: normalizeClipUri(videoUri) }}
+          ref={player.videoRef}
+          source={{ uri: clipUri }}
           style={styles.video}
-          resizeMode="contain"
+          resizeMode={ResizeMode.CONTAIN}
           shouldPlay={false}
+          isMuted
           isLooping={false}
-          onPlaybackStatusUpdate={onPlaybackStatus}
+          progressUpdateIntervalMillis={33}
+          onPlaybackStatusUpdate={player.onPlaybackStatus}
         />
         <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
           <RulerOverlay />
@@ -239,14 +342,48 @@ export function ParachuteSlowMotionReview({
         </Text>
       </View>
 
+      {!player.isReady ? (
+        <Text style={styles.loadingHint}>Loading video for frame analysis…</Text>
+      ) : null}
+
+      <View style={styles.playbackRow}>
+        <Button
+          title={player.isPlaying ? 'Pause' : 'Play'}
+          variant="secondary"
+          disabled={!player.isReady}
+          onPress={() => void player.togglePlayPause()}
+        />
+        <Text style={styles.timeLabel}>
+          {formatTimeS(clampedFrame)} / {durationLabel}
+        </Text>
+      </View>
+
+      <FrameScrubber
+        value={clampedFrame}
+        max={maxFrame}
+        disabled={!player.isReady}
+        onScrubStart={beginScrub}
+        onScrub={scrubToFrame}
+        onScrubEnd={endScrub}
+      />
+
       <Text style={styles.frameMeta}>
-        Frame {currentFrame + 1} / {Math.max(totalFrames, 1)} ·{' '}
-        {((currentFrame / SLOW_MO_FPS) * 1000).toFixed(0)} ms
+        Frame {clampedFrame + 1} / {Math.max(player.totalFrames, 1)}
       </Text>
 
       <View style={styles.frameRow}>
-        <Button title="◀ 1 frame" variant="secondary" onPress={() => stepFrame(-1)} />
-        <Button title="▶ 1 frame" variant="secondary" onPress={() => stepFrame(1)} />
+        <Button
+          title="◀ 1 frame"
+          variant="secondary"
+          disabled={!player.isReady || clampedFrame <= 0}
+          onPress={() => void player.stepFrame(clampedFrame, -1)}
+        />
+        <Button
+          title="▶ 1 frame"
+          variant="secondary"
+          disabled={!player.isReady || clampedFrame >= maxFrame}
+          onPress={() => void player.stepFrame(clampedFrame, 1)}
+        />
       </View>
 
       <View style={styles.frameRow}>
@@ -254,7 +391,23 @@ export function ParachuteSlowMotionReview({
         <Button title="Mark stopped moving" variant="accent" onPress={markStopped} />
       </View>
 
-      <View style={styles.timeline}>
+      <View
+        style={styles.timeline}
+        onLayout={(e: LayoutChangeEvent) => setTimelineWidth(e.nativeEvent.layout.width)}
+        {...timelinePan.panHandlers}
+      >
+        <View
+          style={[
+            styles.timelineProgress,
+            { width: `${framePct(clampedFrame)}%`, backgroundColor: colors.accentMuted },
+          ]}
+        />
+        <View
+          style={[
+            styles.playhead,
+            { left: `${framePct(clampedFrame)}%`, backgroundColor: colors.accent },
+          ]}
+        />
         {firstContactFrame != null ? (
           <View
             style={[
