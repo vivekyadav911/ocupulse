@@ -15,7 +15,6 @@ import { deleteSessionAndResult, getAllOutbox, resultsDao } from './db/sqlite';
 import { getTeamTeacherId } from './profiles';
 import { formatLeaderboardDisplay } from '../lib/leaderboard/formatLeaderRow';
 import type { ActivityType } from '../store/sessionStore';
-import { getAllOutbox, resultsDao } from './db/sqlite';
 import { getFirestoreDb } from './firebase';
 import type { LeaderboardFilter } from './firestore';
 
