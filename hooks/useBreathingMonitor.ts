@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   breathsInWindow,
-  countBreathsFromWaveform,
+  countPeaksFromWaveform,
   createStreamingBreathDetector,
   pushWaveformSample,
   processAxisSample,
@@ -21,6 +21,7 @@ const UI_UPDATE_EVERY = 4; // ~6 Hz React updates from 25 Hz sensor
 export type BreathingRecordingResult = {
   bpm: number;
   peakCount: number;
+  peakTimes: number[];
   waveform: WaveformPoint[];
 };
 
@@ -68,12 +69,13 @@ export function useBreathingMonitor() {
 
   const finishRecording = useCallback((): BreathingRecordingResult => {
     const waveformData = recordingBufferRef.current;
-    const analysis = countBreathsFromWaveform(waveformData);
-    const peakCount = analysis.breathCount;
+    const analysis = countPeaksFromWaveform(waveformData);
+    const peakCount = analysis.peakCount;
     const bpm = bpmFromPeakCount(peakCount, BREATHING_WINDOW_MS);
     return {
       bpm,
       peakCount,
+      peakTimes: analysis.peakTimes,
       waveform: waveformData.slice(),
     };
   }, []);
@@ -84,7 +86,9 @@ export function useBreathingMonitor() {
       detectorRef.current = createStreamingBreathDetector({ x, y, z });
     }
 
-    const { state, signal: nextSignal } = processAxisSample(detectorRef.current, { x, y, z }, now);
+    const { state, signal: nextSignal } = processAxisSample(detectorRef.current, { x, y, z }, now, {
+      freezeAxisBaseline: runningRef.current,
+    });
     detectorRef.current = state;
     sampleIndexRef.current += 1;
 

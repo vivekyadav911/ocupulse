@@ -14,7 +14,10 @@ import { BreathingWaveformChart } from '../../components/breathing/BreathingWave
 import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { StatReadout } from '../../components/StatReadout';
-import { useBreathingMonitor } from '../../hooks/useBreathingMonitor';
+import {
+  useBreathingMonitor,
+  type BreathingRecordingResult,
+} from '../../hooks/useBreathingMonitor';
 import { useLocation } from '../../hooks/useLocation';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
 import { showAlert } from '../../lib/alert';
@@ -75,6 +78,7 @@ export default function BreathingScreen() {
   const gradeLevel = useSessionStore((s) => s.gradeLevel);
 
   const [state, setState] = useState<BreathingSessionState>(createInitialBreathingSessionState);
+  const [pendingResult, setPendingResult] = useState<BreathingRecordingResult | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
   const processedDoneRef = useRef(false);
@@ -104,15 +108,24 @@ export default function BreathingScreen() {
     processedDoneRef.current = true;
 
     const result = monitor.finishRecording();
-    if (result.peakCount < 2) {
+    if (result.peakCount < 1) {
       showAlert(
         'Not enough data',
-        'Complete the 30 s window with at least two trough-to-peak breaths detected on the waveform.',
+        'No peaks were detected on the graph. Keep the phone still on your chest and breathe steadily — each breath should show as a peak.',
       );
       monitor.reset();
+      setPendingResult(null);
       setState((s) => ({ ...s, phase: 'intro' }));
       return;
     }
+
+    setPendingResult(result);
+    setState((s) => ({ ...s, phase: 'verifyPeaks' }));
+  }, [monitor.running, monitor.progress, monitor.finishRecording, monitor.reset]);
+
+  const confirmVerifiedResult = useCallback(() => {
+    const result = pendingResult;
+    if (!result) return;
 
     const activeState = stateRef.current.activeState;
     setState((s) => ({
@@ -130,7 +143,15 @@ export default function BreathingScreen() {
       },
       pendingPrediction: '',
     }));
-  }, [monitor.running, monitor.progress, monitor.finishRecording, monitor.reset]);
+    setPendingResult(null);
+  }, [pendingResult]);
+
+  const retryVerification = useCallback(() => {
+    processedDoneRef.current = false;
+    setPendingResult(null);
+    monitor.reset();
+    setState((s) => ({ ...s, phase: 'intro' }));
+  }, [monitor]);
 
   useEffect(() => {
     if (state.phase !== 'results' || !teamId) return;
@@ -166,6 +187,7 @@ export default function BreathingScreen() {
     }
     processedDoneRef.current = false;
     monitor.reset();
+    setPendingResult(null);
     setState((s) => ({ ...s, phase: 'recording' }));
     monitor.start();
   }, [recordingDisabled, monitor]);
@@ -194,6 +216,7 @@ export default function BreathingScreen() {
     const active = stateRef.current.activeState;
     processedDoneRef.current = false;
     monitor.reset();
+    setPendingResult(null);
     setState((s) => ({
       ...s,
       phase: 'intro',
@@ -269,8 +292,8 @@ export default function BreathingScreen() {
           <>
             <Text style={styles.p}>
               Place the phone flat on your chest. Select a session state, predict your breathing
-              rate, then record for 30 seconds. We combine X, Y, and Z accelerometer axes and count
-              each breath when the waveform rises from a trough to a peak.
+              rate, then record for 30 seconds. Each breath is the highest peak on the graph (at
+              least 1 s apart) paired with its deepest trough.
             </Text>
             <BreathingStateSelector
               value={state.activeState}
@@ -310,10 +333,34 @@ export default function BreathingScreen() {
             <BreathingStatusBadge bpm={monitor.liveBpm} />
             <BreathingWaveformChart samples={monitor.waveform} />
             <StatReadout label="Window progress" value={`${Math.round(monitor.progress * 100)}%`} />
-            <StatReadout label="Breaths detected" value={`${monitor.liveBreathCount}`} />
+            <StatReadout label="Peaks detected" value={`${monitor.liveBreathCount}`} />
             <StatReadout label="Combined signal" value={`${monitor.signal.toFixed(3)} g`} />
           </>
         );
+
+      case 'verifyPeaks': {
+        if (!pendingResult) return null;
+        return (
+          <>
+            <Text style={styles.p}>
+              {breathingStateLabel(state.activeState)} — count the red dots. Each dot is the highest
+              peak (≥1 s apart) paired with the deepest trough before it. We detected{' '}
+              <Text style={{ fontWeight: '700' }}>{pendingResult.peakCount}</Text> peak
+              {pendingResult.peakCount === 1 ? '' : 's'} →{' '}
+              <Text style={{ fontWeight: '700' }}>{pendingResult.bpm.toFixed(1)} BPM</Text>.
+            </Text>
+            <BreathingWaveformChart
+              samples={pendingResult.waveform}
+              title="Full recording — peaks marked"
+              peakTimes={pendingResult.peakTimes}
+            />
+            <StatReadout label="Peaks counted" value={`${pendingResult.peakCount}`} />
+            <StatReadout label="Calculated BPM" value={`${pendingResult.bpm.toFixed(1)}`} />
+            <Button title="Peaks look correct — show results" onPress={confirmVerifiedResult} />
+            <Button title="Retry recording" variant="secondary" onPress={retryVerification} />
+          </>
+        );
+      }
 
       case 'stateSummary': {
         const rec = state.recordings[state.activeState];
@@ -323,7 +370,7 @@ export default function BreathingScreen() {
             <Text style={styles.p}>
               {breathingStateLabel(state.activeState)} — recorded average:{' '}
               <Text style={{ fontWeight: '700' }}>{rec.bpm.toFixed(1)} BPM</Text> ({rec.peakCount}{' '}
-              breaths from waveform). You predicted {rec.predictedBpm || '—'} BPM.
+              peaks on graph). You predicted {rec.predictedBpm || '—'} BPM.
             </Text>
             <BreathingStatusBadge bpm={rec.bpm} />
             <BreathingWaveformChart samples={rec.waveform} title="Recorded waveform" />
@@ -380,7 +427,7 @@ export default function BreathingScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
         <ActivityCard title="Breathing Pace Trainer" live={monitor.running}>
           {renderPhase()}
-          {state.phase !== 'recording' ? (
+          {state.phase !== 'recording' && state.phase !== 'verifyPeaks' ? (
             <Button title="Home" variant="secondary" onPress={() => router.back()} />
           ) : null}
         </ActivityCard>

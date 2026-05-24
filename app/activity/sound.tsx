@@ -55,6 +55,7 @@ export default function SoundScreen() {
   } | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
 
   const mic = useMicrophoneDb();
   const stopMicRef = useRef(mic.stop);
@@ -189,16 +190,19 @@ export default function SoundScreen() {
 
   const setPendingPrediction = useCallback(
     (pendingPrediction: SoundSessionState['pendingPrediction']) => {
+      mic.resetCapturePeak();
       setState((s) => ({ ...s, pendingPrediction }));
     },
-    [],
+    [mic.resetCapturePeak],
   );
 
   const summary = useMemo(() => summarizeSoundSession(state.captures), [state.captures]);
 
+  const recentCaptures = useMemo(() => state.captures.slice(-5), [state.captures]);
+
   const mapRegion = useMemo(() => {
-    if (state.captures.length > 0) {
-      const c = state.captures[state.captures.length - 1]!;
+    if (recentCaptures.length > 0) {
+      const c = recentCaptures[recentCaptures.length - 1]!;
       return {
         latitude: c.lat,
         longitude: c.lng,
@@ -220,11 +224,11 @@ export default function SoundScreen() {
       latitudeDelta: 0.05,
       longitudeDelta: 0.05,
     };
-  }, [coords, state.captures]);
+  }, [coords, recentCaptures]);
 
   const mapMarkers = useMemo(
     () =>
-      state.captures.map((c) => ({
+      recentCaptures.map((c) => ({
         id: c.id,
         latitude: c.lat,
         longitude: c.lng,
@@ -232,13 +236,21 @@ export default function SoundScreen() {
         calloutTitle: c.actionLabel,
         calloutBody: `${Math.round(c.peakDb)} dB · ${formatCaptureTime(c.capturedAt)}`,
       })),
-    [state.captures],
+    [recentCaptures],
   );
 
   const beginCapture = async () => {
     if (mic.permissionDenied || recordingDisabled) return;
 
-    const outcomeDb = mic.capturePeakDb ?? mic.liveDb ?? mic.peakDb ?? null;
+    if (state.captures.length > 0 && state.pendingPrediction == null) {
+      Alert.alert(
+        'Prediction required',
+        'Choose louder or softer than your last capture before recording the next reading.',
+      );
+      return;
+    }
+
+    const outcomeDb = mic.capturePeakDb ?? mic.liveDb ?? null;
     if (outcomeDb == null || outcomeDb <= 0) {
       Alert.alert('No reading yet', 'Wait for the live meter to respond, then try again.');
       return;
@@ -332,7 +344,7 @@ export default function SoundScreen() {
       await submitSoundActivity(payload);
 
       const sessionSummary = summarizeSoundSession(state.captures);
-      const sessionId = await saveActivityResult({
+      await saveActivityResult({
         activityType: 'sound',
         score: sessionSummary?.avgDb ?? 0,
         payload: {
@@ -357,7 +369,8 @@ export default function SoundScreen() {
       });
 
       setState((s) => ({ ...s, uploadStatus: 'success', uploadError: null }));
-      router.push(`/results/${sessionId}`);
+      setReviewModalVisible(false);
+      router.replace('/(tabs)/leaderboard?activity=sound');
     } catch (e) {
       setState((s) => ({
         ...s,
@@ -436,10 +449,11 @@ export default function SoundScreen() {
 
         <SoundResultsTable captures={state.captures} />
 
-        <Text style={styles.mapTitle}>Session map</Text>
+        <Text style={styles.mapTitle}>
+          Session map{state.captures.length > 5 ? ' (last 5 captures)' : ''}
+        </Text>
         <StemmMap
           style={styles.map}
-          mapType="satellite"
           initialRegion={mapRegion}
           showsUserLocation
           markers={mapMarkers}
@@ -465,22 +479,59 @@ export default function SoundScreen() {
 
         <View style={styles.actions}>
           <Button
-            title={uploading ? 'Uploading…' : 'Upload results'}
+            title={uploading ? 'Publishing…' : 'Review map & publish to Leaderboard'}
             variant="secondary"
-            onPress={() => void uploadResults()}
+            icon="bar-chart-outline"
+            onPress={() => setReviewModalVisible(true)}
             disabled={uploading || state.captures.length === 0}
           />
         </View>
 
         {state.uploadStatus === 'success' ? (
           <Text style={[styles.uploadStatus, styles.uploadSuccess]}>
-            Upload successful — results saved locally too.
+            Published to Leaderboard — results saved locally too.
           </Text>
         ) : null}
         {state.uploadStatus === 'error' && state.uploadError ? (
           <Text style={[styles.uploadStatus, styles.uploadError]}>{state.uploadError}</Text>
         ) : null}
       </ActivityCard>
+
+      <Modal visible={reviewModalVisible} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { maxHeight: '90%' }]}>
+            <Text style={styles.modalTitle}>Review session map</Text>
+            <Text style={styles.modalHint}>
+              Check your last {Math.min(recentCaptures.length, 5)} capture
+              {recentCaptures.length === 1 ? '' : 's'} on the map, then publish to the Leaderboard.
+            </Text>
+            <StemmMap style={styles.map} initialRegion={mapRegion} markers={mapMarkers} />
+            {summary ? (
+              <Text style={styles.modalHint}>
+                Avg {summary.avgDb} dB · Loudest: {summary.loudestAction} · Quietest:{' '}
+                {summary.quietestAction}
+              </Text>
+            ) : null}
+            <View style={styles.modalActions}>
+              <Button
+                title="Cancel"
+                variant="secondary"
+                onPress={() => setReviewModalVisible(false)}
+                disabled={uploading}
+              />
+              <Button
+                title={uploading ? 'Publishing…' : 'Publish to Leaderboard'}
+                icon="bar-chart-outline"
+                onPress={() => void uploadResults()}
+                disabled={uploading}
+              />
+            </View>
+            {state.uploadStatus === 'error' && state.uploadError ? (
+              <Text style={[styles.uploadStatus, styles.uploadError]}>{state.uploadError}</Text>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={labelModalVisible} transparent animationType="fade">
         <View style={styles.modalBackdrop}>

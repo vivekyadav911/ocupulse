@@ -77,7 +77,7 @@ export function SoundPredictionPicker({ value, onChange, disabled }: SoundPredic
       <Text style={styles.hint}>
         {disabled
           ? 'First capture has no previous reading — prediction is N/A.'
-          : 'Choose whether you expect this action to be louder or softer than your last capture.'}
+          : 'Required before each new capture — choose louder or softer than your last reading.'}
       </Text>
     </View>
   );

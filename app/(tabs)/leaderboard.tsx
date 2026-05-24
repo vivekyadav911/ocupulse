@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { Layout, useReducedMotion } from 'react-native-reanimated';
@@ -19,6 +19,7 @@ import { useThemedStyles } from '../../theme/themedStyles';
 const springLayout = Layout.springify().damping(18).stiffness(120);
 
 export default function LeaderboardScreen() {
+  const { activity: activityParam } = useLocalSearchParams<{ activity?: string }>();
   const role = useSessionStore((s) => s.role);
   const activeTeamId = useSessionStore((s) => s.activeTeamId);
   const teamName = useSessionStore((s) => s.teamName);
@@ -28,6 +29,16 @@ export default function LeaderboardScreen() {
   const prevRankRef = useRef<Map<string, number>>(new Map());
   const reduceMotion = useReducedMotion();
   const isTeacher = role === 'teacher';
+
+  useEffect(() => {
+    if (
+      activityParam &&
+      ACTIVITY_LABELS.some((f) => f.key === activityParam) &&
+      activityParam !== 'all'
+    ) {
+      setFilter(activityParam);
+    }
+  }, [activityParam]);
 
   const styles = useThemedStyles((t) => ({
     sub: { color: t.colors.muted, marginBottom: t.spacing.md },

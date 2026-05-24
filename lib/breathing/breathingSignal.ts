@@ -2,11 +2,11 @@ export const BREATHING_SAMPLE_MS = 40; // 25 Hz
 export const BREATHING_WINDOW_MS = 30_000;
 export const WAVEFORM_DISPLAY_SEC = 10;
 
-/** Amplify chest motion signal 3× so slow, shallow breaths register. */
-export const SENSITIVITY_GAIN = 3;
+/** Strong gain so sub-1 cm chest motion is visible on the graph. */
+export const SENSITIVITY_GAIN = 8;
 
-export const LOW_PASS_PREV = 0.85;
-export const LOW_PASS_RAW = 0.15;
+export const LOW_PASS_PREV = 0.78;
+export const LOW_PASS_RAW = 0.22;
 
 export type WaveformPoint = { t: number; z: number; x?: number; y?: number };
 
@@ -14,9 +14,9 @@ export function lowPassSmooth(prevSmoothed: number, raw: number): number {
   return LOW_PASS_PREV * prevSmoothed + LOW_PASS_RAW * raw;
 }
 
-/** Scale filtered signal for peak detection and waveform display. */
-export function amplifyBreathingSignal(smoothed: number): number {
-  return smoothed * SENSITIVITY_GAIN;
+/** Scale filtered AC component for peak detection and waveform display. */
+export function amplifyBreathingSignal(acComponent: number): number {
+  return acComponent * SENSITIVITY_GAIN;
 }
 
 export type BpmStatus = 'low' | 'normal' | 'elevated' | 'high';

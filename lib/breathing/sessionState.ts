@@ -48,7 +48,13 @@ export type BreathingTeamAggregates = {
   highestIncreaseMember: string | null;
 };
 
-export type BreathingSessionPhase = 'intro' | 'recording' | 'stateSummary' | 'results' | 'upload';
+export type BreathingSessionPhase =
+  | 'intro'
+  | 'recording'
+  | 'verifyPeaks'
+  | 'stateSummary'
+  | 'results'
+  | 'upload';
 
 export type BreathingSessionState = {
   phase: BreathingSessionPhase;

@@ -1,5 +1,5 @@
 import { Text, useWindowDimensions, View } from 'react-native';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { WaveformPoint } from '../../lib/breathing/breathingSignal';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
@@ -12,6 +12,8 @@ type BreathingWaveformChartProps = {
   title?: string;
   height?: number;
   compact?: boolean;
+  /** Peak timestamps to mark on the graph (verification). */
+  peakTimes?: number[];
 };
 
 function pathFromSamples(samples: WaveformPoint[], width: number, height: number): string | null {
@@ -48,6 +50,7 @@ export function BreathingWaveformChart({
   title = 'Breathing waveform (last 10 s)',
   height = CHART_H,
   compact = false,
+  peakTimes,
 }: BreathingWaveformChartProps) {
   const { colors, spacing } = useAppTheme();
   const { width: windowW } = useWindowDimensions();
@@ -69,6 +72,42 @@ export function BreathingWaveformChart({
 
   const path = pathFromSamples(samples, chartWidth, height);
 
+  const peakMarkers =
+    path && peakTimes?.length && samples.length >= 2
+      ? (() => {
+          const innerW = chartWidth - PAD.left - PAD.right;
+          const innerH = height - PAD.top - PAD.bottom;
+          const tMin = samples[0]!.t;
+          const tMax = samples[samples.length - 1]!.t;
+          const tSpan = Math.max(1, tMax - tMin);
+          let zMin = Infinity;
+          let zMax = -Infinity;
+          for (const s of samples) {
+            zMin = Math.min(zMin, s.z);
+            zMax = Math.max(zMax, s.z);
+          }
+          const zPad = Math.max(0.02, (zMax - zMin) * 0.15);
+          zMin -= zPad;
+          zMax += zPad;
+          const zSpan = Math.max(0.01, zMax - zMin);
+
+          return peakTimes.map((t, i) => {
+            let nearest = samples[0]!;
+            let bestDist = Math.abs(nearest.t - t);
+            for (const s of samples) {
+              const d = Math.abs(s.t - t);
+              if (d < bestDist) {
+                bestDist = d;
+                nearest = s;
+              }
+            }
+            const x = PAD.left + ((nearest.t - tMin) / tSpan) * innerW;
+            const y = PAD.top + innerH - ((nearest.z - zMin) / zSpan) * innerH;
+            return { key: `${t}-${i}`, x, y };
+          });
+        })()
+      : [];
+
   return (
     <View>
       {title ? <Text style={styles.title}>{title}</Text> : null}
@@ -86,6 +125,17 @@ export function BreathingWaveformChart({
             strokeWidth={1}
           />
           <Path d={path} stroke={colors.accent} strokeWidth={compact ? 1.5 : 2} fill="none" />
+          {peakMarkers.map((m) => (
+            <Circle
+              key={m.key}
+              cx={m.x}
+              cy={m.y}
+              r={compact ? 3 : 5}
+              fill={colors.danger}
+              stroke="#fff"
+              strokeWidth={1}
+            />
+          ))}
         </Svg>
       )}
     </View>
