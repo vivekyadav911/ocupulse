@@ -24,20 +24,41 @@ export function useCameraRecorder(options: UseCameraRecorderOptions = {}) {
   const previewTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRecordingRef = useRef(false);
 
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+  const [cameraPermission, requestCameraPermission, getCameraPermissions] = useCameraPermissions();
+  const [micPermission, requestMicPermission, getMicrophonePermissions] =
+    useMicrophonePermissions();
 
   const [isRecording, setIsRecording] = useState(false);
   const [lastClipUri, setLastClipUri] = useState<string | null>(null);
   const [frameTimes, setFrameTimes] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshPermissions = useCallback(async () => {
+    await Promise.all([getCameraPermissions(), getMicrophonePermissions()]);
+  }, [getCameraPermissions, getMicrophonePermissions]);
+
   const requestPermissions = useCallback(async (): Promise<boolean> => {
-    const cam = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
-    if (!cam.granted) return false;
-    const mic = micPermission?.granted ? micPermission : await requestMicPermission();
-    return mic.granted;
-  }, [cameraPermission, micPermission, requestCameraPermission, requestMicPermission]);
+    setError(null);
+    const cam = await requestCameraPermission();
+    if (!cam.granted) {
+      setError(
+        cam.canAskAgain
+          ? 'Camera access is required. Allow it when iOS prompts you.'
+          : 'Camera was denied. Open Settings → Ocupulse → enable Camera.',
+      );
+      return false;
+    }
+    const mic = await requestMicPermission();
+    if (!mic.granted) {
+      setError(
+        mic.canAskAgain
+          ? 'Microphone access is required for video with sound. Allow it when prompted.'
+          : 'Microphone was denied. Open Settings → Ocupulse → enable Microphone.',
+      );
+      return false;
+    }
+    return true;
+  }, [requestCameraPermission, requestMicPermission]);
 
   const stopPreviewTick = useCallback(() => {
     if (previewTickRef.current) clearInterval(previewTickRef.current);
@@ -141,7 +162,9 @@ export function useCameraRecorder(options: UseCameraRecorderOptions = {}) {
     isRecording,
     error,
     requestPermissions,
+    refreshPermissions,
     hasPermission: Boolean(cameraPermission?.granted && micPermission?.granted),
+    permissionsLoading: cameraPermission == null || micPermission == null,
     cameraPermission: toPermission(cameraPermission),
     microphonePermission: toPermission(micPermission),
   };

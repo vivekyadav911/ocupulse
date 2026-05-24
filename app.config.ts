@@ -46,6 +46,13 @@ export default (): ExpoConfig => ({
       },
     ],
     [
+      'expo-av',
+      {
+        microphonePermission:
+          'Ocupulse uses the microphone for Sound Pollution Hunter and the mic capability spike.',
+      },
+    ],
+    [
       'expo-location',
       {
         locationWhenInUsePermission:
