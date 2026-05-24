@@ -16,6 +16,7 @@ function readExtra() {
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
+let warnedMissingFirebaseKeys = false;
 
 export function isFirebaseConfigured(): boolean {
   const cfg = readExtra();
@@ -26,7 +27,10 @@ export function getFirebaseApp(): FirebaseApp | null {
   if (app) return app;
   const cfg = readExtra();
   if (!cfg.apiKey || !cfg.projectId) {
-    console.warn('Ocupulse: Firebase extra keys missing — set .env / app.config.ts.');
+    if (!warnedMissingFirebaseKeys) {
+      warnedMissingFirebaseKeys = true;
+      console.warn('Ocupulse: Firebase extra keys missing — set .env / app.config.ts.');
+    }
     return null;
   }
   app = getApps().length ? getApps()[0]! : initializeApp(cfg);

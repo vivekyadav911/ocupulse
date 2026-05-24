@@ -1,6 +1,7 @@
 import { parseSoundPayload } from '../lib/sound/parseSoundPayload';
 import type { SoundSample } from '../lib/sound/types';
 import { resultsDao } from './db/sqlite';
+import type { ExperimentResult } from './db/types';
 import type { LeaderRow } from './firestore';
 
 export function leaderRowToSoundSample(row: LeaderRow): SoundSample | null {
@@ -37,9 +38,9 @@ export function experimentResultToSoundSample(
 export async function loadSoundSamplesFromSqlite(): Promise<SoundSample[]> {
   const rows = await resultsDao.findAll();
   return rows
-    .filter((r) => r.activityType === 'sound')
-    .map((r) => experimentResultToSoundSample(r.id, r.dataJson, r.score))
-    .filter((s): s is SoundSample => s != null);
+    .filter((r: ExperimentResult) => r.activityType === 'sound')
+    .map((r: ExperimentResult) => experimentResultToSoundSample(r.id, r.dataJson, r.score))
+    .filter((s: SoundSample | null): s is SoundSample => s != null);
 }
 
 export function mergeSoundSamples(local: SoundSample[], remote: SoundSample[]): SoundSample[] {

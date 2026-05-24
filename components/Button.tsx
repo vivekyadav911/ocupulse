@@ -1,3 +1,4 @@
+/* eslint-disable import/no-unresolved -- @expo/vector-icons ships with Expo SDK */
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import {
@@ -42,10 +43,10 @@ function variantColors(variant: Variant, colors: ThemeColors) {
     };
   }
   return {
-    bg: colors.surface,
+    bg: colors.surfaceAlt,
     fg: colors.text,
-    borderWidth: 1 as const,
-    borderColor: colors.text,
+    borderWidth: 2 as const,
+    borderColor: colors.primaryButton,
   };
 }
 
@@ -92,6 +93,7 @@ export function Button({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={hint}
+      hitSlop={8}
       style={({ pressed }) => [
         styles.base,
         {

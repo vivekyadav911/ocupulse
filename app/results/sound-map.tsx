@@ -6,7 +6,7 @@ import { ScreenShell } from '../../components/ScreenShell';
 import { StemmMap } from '../../components/StemmMap';
 import { markerColorForPeakDb } from '../../lib/sound/markerColor';
 import type { SoundSample } from '../../lib/sound/types';
-import { subscribeLeaderboard } from '../../services/firestore';
+import { subscribeLeaderboard } from '../../services/leaderboard';
 import {
   leaderRowToSoundSample,
   loadSoundSamplesFromSqlite,
@@ -51,12 +51,13 @@ export default function SoundMapScreen() {
   );
 
   useEffect(() => {
-    return subscribeLeaderboard('sound', (rows) => {
+    const sub = subscribeLeaderboard('sound', (rows) => {
       const remote = rows
         .map((row) => leaderRowToSoundSample(row))
         .filter((s): s is SoundSample => s != null);
       setRemoteMarkers(remote);
     });
+    return sub.unsubscribe;
   }, []);
 
   const markers = useMemo(

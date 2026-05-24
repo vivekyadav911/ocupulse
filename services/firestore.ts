@@ -1,11 +1,4 @@
-import {
-  collection,
-  doc,
-  onSnapshot,
-  setDoc,
-  type DocumentReference,
-  type Unsubscribe,
-} from 'firebase/firestore';
+import { doc, setDoc, type DocumentReference } from 'firebase/firestore';
 import { getCurrentUser } from './auth';
 import {
   deleteOutboxIds,
@@ -22,6 +15,9 @@ export type LeaderRow = {
   teamName: string;
   score: number;
   activityType: string;
+  submittedAt?: number;
+  scoreLabel?: string;
+  detail?: string;
   lat?: number;
   lng?: number;
   peakDb?: number;
@@ -43,43 +39,6 @@ function docRefForPath(
     return doc(db, parts[0]!, parts[1]!, parts[2]!, parts[3]!);
   }
   throw new Error(`Unsupported outbox path: ${path}`);
-}
-
-export function subscribeLeaderboard(
-  activityType: LeaderboardFilter,
-  onRows: (rows: LeaderRow[]) => void,
-): Unsubscribe {
-  const db = getFirestoreDb();
-  if (!db) {
-    onRows([]);
-    return () => {};
-  }
-  const col = collection(db, 'scores');
-  return onSnapshot(
-    col,
-    (snap) => {
-      const rows = snap.docs
-        .map((d) => {
-          const x = d.data() as Record<string, unknown>;
-          return {
-            id: d.id,
-            teamName: String(x.teamName ?? ''),
-            score: Number(x.score ?? 0),
-            activityType: String(x.activityType ?? activityType),
-            lat: x.lat != null ? Number(x.lat) : undefined,
-            lng: x.lng != null ? Number(x.lng) : undefined,
-            peakDb: x.peakDb != null ? Number(x.peakDb) : undefined,
-            avgDb: x.avgDb != null ? Number(x.avgDb) : undefined,
-            address: x.address != null ? String(x.address) : undefined,
-          };
-        })
-        .filter((r) => activityType === 'all' || r.activityType === activityType)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 50);
-      onRows(rows);
-    },
-    () => onRows([]),
-  );
 }
 
 export async function flushOutboxRow(
@@ -130,6 +89,15 @@ export async function writeSessionOptimistic(input: {
   const user = getCurrentUser();
   const userId = input.userId ?? user?.uid ?? null;
   const sessionStart = Date.now();
+  const teamName = input.teamName.trim() || 'Demo Team';
+  const submittedAt = Date.now();
+  const storedPayload = {
+    ...input.payload,
+    teamName,
+    activityType: input.activityType,
+    score: input.score,
+    submittedAt,
+  };
 
   await sessionsDao.insert({
     id,
@@ -146,7 +114,7 @@ export async function writeSessionOptimistic(input: {
     sessionId: id,
     activityType: input.activityType,
     score: input.score,
-    dataJson: JSON.stringify(input.payload),
+    dataJson: JSON.stringify(storedPayload),
     synced: 0,
     teamId: input.teamId ?? null,
     studentId: input.studentId ?? null,
@@ -155,7 +123,7 @@ export async function writeSessionOptimistic(input: {
   });
 
   const docPayload = {
-    teamName: input.teamName,
+    teamName,
     teamId: input.teamId ?? null,
     studentId: input.studentId ?? null,
     userId,
@@ -163,8 +131,8 @@ export async function writeSessionOptimistic(input: {
     activityType: input.activityType,
     score: input.score,
     mediaUrls: input.mediaUrls ?? [],
-    ...input.payload,
-    updatedAt: Date.now(),
+    ...storedPayload,
+    updatedAt: submittedAt,
   };
 
   await insertOutbox(`scores/${id}`, docPayload);

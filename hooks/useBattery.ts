@@ -1,36 +1,126 @@
 import * as Battery from 'expo-battery';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 
 const WARN_THRESHOLD = 0.2;
 const CRITICAL_THRESHOLD = 0.1;
+const POLL_MS = 10_000;
 
-export function useBatteryLevel() {
-  const [level, setLevel] = useState(1);
-  const [lowPower, setLow] = useState(false);
+export type BatterySnapshot = {
+  /** Raw 0–1 from the OS, or -1 if unknown */
+  rawLevel: number;
+  percent: number | null;
+  lowPowerMode: boolean;
+  available: boolean;
+  updatedAt: number;
+};
 
-  useEffect(() => {
-    let sub: Battery.Subscription | undefined;
-    void (async () => {
-      const l = await Battery.getBatteryLevelAsync();
-      setLevel(l);
-      const m = await Battery.isLowPowerModeEnabledAsync();
-      setLow(m);
-      sub = Battery.addBatteryLevelListener(({ batteryLevel }) => setLevel(batteryLevel));
-    })();
-    return () => sub?.remove();
+export type BatteryLevelState = BatterySnapshot & {
+  /** @deprecated use rawLevel — normalized 0–1 for gates */
+  level: number;
+  refresh: () => Promise<BatterySnapshot>;
+};
+
+function toPercent(level: number): number | null {
+  if (!Number.isFinite(level) || level < 0) return null;
+  return Math.min(100, Math.max(0, Math.round(level * 100)));
+}
+
+/** Read battery — direct level API first (fresher on manual refresh than cached PowerState). */
+export async function readBatterySnapshot(): Promise<BatterySnapshot> {
+  const updatedAt = Date.now();
+  const available = await Battery.isAvailableAsync();
+  if (!available) {
+    return {
+      rawLevel: -1,
+      percent: null,
+      lowPowerMode: false,
+      available: false,
+      updatedAt,
+    };
+  }
+
+  const level = await Battery.getBatteryLevelAsync();
+  let lowPowerMode = false;
+  try {
+    lowPowerMode = await Battery.isLowPowerModeEnabledAsync();
+  } catch {
+    /* optional on some platforms */
+  }
+
+  return {
+    rawLevel: level,
+    percent: toPercent(level),
+    lowPowerMode,
+    available: level >= 0,
+    updatedAt,
+  };
+}
+
+export function useBatteryLevel(): BatteryLevelState {
+  const [snapshot, setSnapshot] = useState<BatterySnapshot>({
+    rawLevel: -1,
+    percent: null,
+    lowPowerMode: false,
+    available: false,
+    updatedAt: 0,
+  });
+
+  const refresh = useCallback(async () => {
+    const next = await readBatterySnapshot();
+    setSnapshot(next);
+    return next;
   }, []);
 
-  return { level, lowPowerMode: lowPower };
+  useEffect(() => {
+    void refresh();
+    let levelSub: Battery.Subscription | undefined;
+    void Battery.isAvailableAsync().then((ok) => {
+      if (!ok) return;
+      levelSub = Battery.addBatteryLevelListener(({ batteryLevel }) => {
+        void Battery.isLowPowerModeEnabledAsync().then((lowPowerMode) => {
+          setSnapshot({
+            rawLevel: batteryLevel,
+            percent: toPercent(batteryLevel),
+            lowPowerMode,
+            available: batteryLevel >= 0,
+            updatedAt: Date.now(),
+          });
+        });
+      });
+    });
+
+    const poll = setInterval(() => void refresh(), POLL_MS);
+    const onAppState = (state: AppStateStatus) => {
+      if (state === 'active') void refresh();
+    };
+    const appSub = AppState.addEventListener('change', onAppState);
+
+    return () => {
+      levelSub?.remove();
+      clearInterval(poll);
+      appSub.remove();
+    };
+  }, [refresh]);
+
+  const level = snapshot.rawLevel < 0 ? 0 : snapshot.rawLevel;
+
+  return {
+    ...snapshot,
+    level,
+    refresh,
+  };
 }
 
 /** Battery state for banners and recording gate (Issue #35). */
 export function useBattery() {
-  const { level, lowPowerMode } = useBatteryLevel();
-  const warn = level < WARN_THRESHOLD;
-  const critical = level < CRITICAL_THRESHOLD;
+  const bat = useBatteryLevel();
+  const normalized = bat.percent != null ? bat.percent / 100 : bat.level;
+  const warn = normalized < WARN_THRESHOLD;
+  const critical = normalized < CRITICAL_THRESHOLD;
   return {
-    level,
-    lowPowerMode,
+    ...bat,
+    level: normalized,
     warn,
     critical,
     recordingDisabled: critical,

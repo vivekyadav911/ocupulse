@@ -8,6 +8,7 @@ import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { StatReadout } from '../../components/StatReadout';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
+import { showAlert } from '../../lib/alert';
 import { magnitudeRms, wobbleScoreFromRms } from '../../lib/calc/wobble';
 import { saveActivityResult } from '../../services/activityWrite';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
@@ -90,6 +91,8 @@ export default function EarthquakeScreen() {
         payload: { rmsG, sampleCount, hapticCount, shakeMs: SHAKE_MS },
       });
       router.push(`/results/${sessionId}`);
+    } catch (e) {
+      showAlert('Could not save', e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }

@@ -16,7 +16,9 @@ import {
   type Point2,
 } from '../../lib/calc/reactionStats';
 import { useRecordingGate } from '../../hooks/useRecordingGate';
-import { saveActivityResult } from '../../services/activityWrite';
+import { showAlert } from '../../lib/alert';
+import { writeSessionOptimistic } from '../../services/firestore';
+import { useSessionStore } from '../../store/sessionStore';
 import { activityScreenStyles } from '../../theme/activityScreenStyles';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
@@ -25,6 +27,7 @@ const REACTION_ROUNDS = 5;
 
 export default function ReactionScreen() {
   const router = useRouter();
+  const team = useSessionStore((s) => s.teamName);
   const { recordingDisabled } = useRecordingGate();
   const { colors } = useAppTheme();
   const styles = useThemedStyles(activityScreenStyles);
@@ -106,8 +109,9 @@ export default function ReactionScreen() {
     if (times.length < REACTION_ROUNDS || tracePoints.length < 8) return;
     setSaving(true);
     try {
-      const sessionId = await saveActivityResult({
+      const sessionId = await writeSessionOptimistic({
         activityType: 'reaction',
+        teamName: team,
         score: combo,
         payload: {
           avgReactionMs: avgReact,
@@ -118,6 +122,8 @@ export default function ReactionScreen() {
         },
       });
       router.push(`/results/${sessionId}`);
+    } catch (e) {
+      showAlert('Could not save', e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }

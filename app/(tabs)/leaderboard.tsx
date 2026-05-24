@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { Layout, useReducedMotion } from 'react-native-reanimated';
 import { PageTitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
-import type { LeaderboardFilter, LeaderRow } from '../../services/firestore';
-import { subscribeLeaderboard } from '../../services/firestore';
+import type { LeaderboardFilter, LeaderRow } from '../../services/leaderboard';
+import { subscribeLeaderboard } from '../../services/leaderboard';
+import { syncOutbox } from '../../services/firestore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 const FILTERS: { key: LeaderboardFilter; label: string }[] = [
@@ -13,9 +15,17 @@ const FILTERS: { key: LeaderboardFilter; label: string }[] = [
   { key: 'sound', label: 'Sound' },
   { key: 'earthquake', label: 'Earthquake' },
   { key: 'humanperf', label: 'Human perf' },
+  { key: 'parachute', label: 'Parachute' },
+  { key: 'handfan', label: 'Hand fan' },
+  { key: 'breathing', label: 'Breathing' },
 ];
 
 const springLayout = Layout.springify().damping(18).stiffness(120);
+
+function activityLabel(activityType: string): string {
+  const found = FILTERS.find((f) => f.key === activityType);
+  return found?.label ?? activityType;
+}
 
 export default function LeaderboardScreen() {
   const [filter, setFilter] = useState<LeaderboardFilter>('all');
@@ -52,16 +62,24 @@ export default function LeaderboardScreen() {
     },
     rank: { width: 36, fontWeight: '800', color: t.colors.accent },
     team: { flex: 1, color: t.colors.text, fontWeight: '600' },
-    score: { fontWeight: '800', color: t.colors.text },
+    score: { fontWeight: '800', color: t.colors.text, textAlign: 'right' as const },
     up: { marginLeft: t.spacing.xs, color: t.colors.success, fontWeight: '800' },
-    meta: { fontSize: 12, color: t.colors.muted },
+    meta: { fontSize: 12, color: t.colors.muted, marginTop: 2 },
     empty: { marginTop: t.spacing.lg, color: t.colors.muted },
     list: { flex: 1, minHeight: 200 },
   }));
 
+  const subRef = useRef<ReturnType<typeof subscribeLeaderboard> | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      void syncOutbox().then(() => subRef.current?.refresh());
+    }, []),
+  );
+
   useEffect(() => {
     const ranks = prevRankRef.current;
-    const unsub = subscribeLeaderboard(filter, (next) => {
+    const sub = subscribeLeaderboard(filter, (next) => {
       const up = new Set<string>();
       next.forEach((row, index) => {
         const prev = ranks.get(row.id);
@@ -71,8 +89,10 @@ export default function LeaderboardScreen() {
       setMovedUp(up);
       setRows(next);
     });
+    subRef.current = sub;
     return () => {
-      unsub();
+      sub.unsubscribe();
+      subRef.current = null;
       ranks.clear();
     };
   }, [filter]);
@@ -80,7 +100,9 @@ export default function LeaderboardScreen() {
   return (
     <ScreenShell scroll={false}>
       <PageTitle eyebrow="Rankings" title="Board" />
-      <Text style={styles.sub}>Live Firestore rankings — rows spring when ranks change</Text>
+      <Text style={styles.sub}>
+        Scores from this device and cloud sync — complete an experiment, then Save result
+      </Text>
       <View style={styles.chips}>
         {FILTERS.map((f) => {
           const on = filter === f.key;
@@ -105,16 +127,22 @@ export default function LeaderboardScreen() {
             <View style={styles.row}>
               <Text style={styles.rank}>{index + 1}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.team}>{item.teamName}</Text>
-                {filter === 'all' ? <Text style={styles.meta}>{item.activityType}</Text> : null}
+                <Text style={styles.team}>{item.teamName || 'Demo Team'}</Text>
+                <Text style={styles.meta}>
+                  {filter === 'all'
+                    ? `${activityLabel(item.activityType)}${item.detail ? ` · ${item.detail}` : ''}`
+                    : item.detail || activityLabel(item.activityType)}
+                </Text>
               </View>
               {movedUp.has(item.id) ? <Text style={styles.up}>▲</Text> : null}
-              <Text style={styles.score}>{Math.round(item.score)}</Text>
+              <Text style={styles.score}>{item.scoreLabel ?? Math.round(item.score)}</Text>
             </View>
           </Animated.View>
         )}
         ListEmptyComponent={
-          <Text style={styles.empty}>No scores yet — complete an activity on any device.</Text>
+          <Text style={styles.empty}>
+            No scores yet — open an activity, finish it, and tap Save result.
+          </Text>
         }
       />
     </ScreenShell>

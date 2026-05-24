@@ -5,7 +5,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { Slot } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAuthChange } from '../services/auth';
 import { runMigrations } from '../services/db/sqlite';
@@ -44,7 +44,9 @@ export default function RootLayout() {
     let timeout: ReturnType<typeof setTimeout> | undefined;
 
     void (async () => {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      if (Platform.OS !== 'web') {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      }
       await runMigrations();
       setDbReady(true);
       await registerBackgroundSync();
