@@ -1,13 +1,18 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   where,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { getCurrentUser } from './auth';
+import { deleteSessionAndResult, getAllOutbox, resultsDao } from './db/sqlite';
+import { getTeamTeacherId } from './profiles';
 import { formatLeaderboardDisplay } from '../lib/leaderboard/formatLeaderRow';
 import type { ActivityType } from '../store/sessionStore';
 import { getAllOutbox, resultsDao } from './db/sqlite';
@@ -193,34 +198,170 @@ export function subscribeStudentExperiments(
   };
 }
 
+export async function loadTeamExperimentsLocal(teamId: string): Promise<ExperimentRecord[]> {
+  const results = await resultsDao.findAll();
+  const outbox = await getAllOutbox();
+  const pendingIds = new Set(
+    outbox.filter((r) => r.path.startsWith('scores/')).map((r) => r.path.replace(/^scores\//, '')),
+  );
+  const rows: ExperimentRecord[] = [];
+  for (const r of results) {
+    if (!r.activityType || r.score == null || r.teamId !== teamId) continue;
+    let payload: Record<string, unknown> = {};
+    if (r.dataJson) {
+      try {
+        payload = payloadFromUnknown(JSON.parse(r.dataJson));
+      } catch {
+        payload = {};
+      }
+    }
+    rows.push(
+      experimentRecordFromStored(r.id, r.activityType, r.score, payload, !pendingIds.has(r.id)),
+    );
+  }
+  return rows;
+}
+
+export type TeamExperimentsSubscription = {
+  unsubscribe: () => void;
+  refresh: () => void;
+};
+
 export function subscribeTeamExperiments(
   teamId: string,
   activityFilter: LeaderboardFilter,
   onRows: (rows: ExperimentRecord[]) => void,
-): Unsubscribe {
+): TeamExperimentsSubscription {
   const db = getFirestoreDb();
+  let localRows: ExperimentRecord[] = [];
+  let remoteRows: ExperimentRecord[] = [];
+
+  const publish = () => {
+    let merged = mergeExperimentRows(remoteRows, localRows);
+    if (activityFilter !== 'all') {
+      merged = merged.filter((r) => r.activityType === activityFilter);
+    }
+    onRows(merged);
+  };
+
+  const refreshLocal = () => {
+    void loadTeamExperimentsLocal(teamId).then((rows) => {
+      localRows = rows;
+      publish();
+    });
+  };
+
+  refreshLocal();
+
   if (!db) {
-    onRows([]);
-    return () => {};
+    return { unsubscribe: () => {}, refresh: refreshLocal };
   }
+
   const q = query(collection(db, 'scores'), where('teamId', '==', teamId));
-  return onSnapshot(
+  const unsubRemote = onSnapshot(
     q,
     (snap) => {
-      let rows = snap.docs.map((d) => {
+      remoteRows = snap.docs.map((d) => {
         const x = payloadFromUnknown(d.data());
         const activityType = String(x.activityType ?? '');
         const score = Number(x.score ?? 0);
         return experimentRecordFromStored(d.id, activityType, score, x, true);
       });
-      if (activityFilter !== 'all') {
-        rows = rows.filter((r) => r.activityType === activityFilter);
-      }
-      rows.sort((a, b) => b.submittedAt - a.submittedAt);
-      onRows(rows);
+      publish();
     },
-    () => onRows([]),
+    () => {
+      remoteRows = [];
+      publish();
+    },
   );
+
+  return {
+    unsubscribe: () => unsubRemote(),
+    refresh: refreshLocal,
+  };
+}
+
+export async function deleteExperimentRecord(sessionId: string): Promise<void> {
+  await deleteSessionAndResult(sessionId);
+  const db = getFirestoreDb();
+  if (!db) return;
+  try {
+    await deleteDoc(doc(db, 'scores', sessionId));
+  } catch {
+    /* may not exist remotely */
+  }
+  try {
+    await deleteDoc(doc(db, 'sessions', sessionId));
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function updateExperimentRecord(
+  sessionId: string,
+  patch: { score?: number; payload?: Record<string, unknown> },
+): Promise<ExperimentRecord | null> {
+  const existing = await getExperimentRecord(sessionId);
+  if (!existing) return null;
+
+  const score = patch.score ?? existing.score;
+  const payload = { ...existing.payload, ...patch.payload, score, updatedAt: Date.now() };
+  const user = getCurrentUser();
+  const teacherId = user ? await getTeamTeacherId(existing.payload.teamId as string) : null;
+
+  const local = await resultsDao.findById(sessionId);
+  if (local) {
+    await resultsDao.update({
+      ...local,
+      score,
+      dataJson: JSON.stringify(payload),
+      synced: 0,
+    });
+  }
+
+  const db = getFirestoreDb();
+  if (db) {
+    await setDoc(
+      doc(db, 'scores', sessionId),
+      {
+        ...payload,
+        score,
+        sessionId,
+        updatedAt: Date.now(),
+        teacherId: teacherId ?? payload.teacherId,
+      },
+      { merge: true },
+    );
+  }
+
+  return experimentRecordFromStored(sessionId, existing.activityType, score, payload, Boolean(db));
+}
+
+export async function createTeacherExperiment(input: {
+  activityType: ActivityType;
+  score: number;
+  teamId: string;
+  teamName: string;
+  studentId?: string;
+  studentFirstName?: string;
+  payload?: Record<string, unknown>;
+}): Promise<string> {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Not signed in');
+  const { writeSessionOptimistic } = await import('./firestore');
+  return writeSessionOptimistic({
+    activityType: input.activityType,
+    teamName: input.teamName,
+    teamId: input.teamId,
+    studentId: input.studentId ?? null,
+    studentFirstName: input.studentFirstName ?? null,
+    userId: user.uid,
+    score: input.score,
+    payload: {
+      ...(input.payload ?? {}),
+      createdByTeacher: true,
+    },
+  });
 }
 
 export async function getExperimentRecord(sessionId: string): Promise<ExperimentRecord | null> {

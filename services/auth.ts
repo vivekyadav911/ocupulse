@@ -7,7 +7,7 @@ import {
   signOut as fbSignOut,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { deleteField, doc, getDoc, setDoc } from 'firebase/firestore';
 import type { UserProfile, UserRole } from './db/types';
 import { getFirebaseAuth, getFirestoreDb, isFirebaseConfigured } from './firebase';
 
@@ -98,6 +98,11 @@ export async function createUserProfile(
     throw new Error('Firestore is not available. Check Firebase configuration in .env.');
   }
   const now = Date.now();
+  const existing = await getDoc(doc(db, 'users', uid));
+  const createdAt = existing.exists()
+    ? Number(existing.data()?.createdAt ?? now)
+    : now;
+
   const profile: UserProfile = {
     uid,
     role: input.role,
@@ -107,10 +112,39 @@ export async function createUserProfile(
     studentId: input.studentId,
     managedTeamIds: input.managedTeamIds,
     profileReady: input.profileReady ?? false,
-    createdAt: now,
+    createdAt,
     updatedAt: now,
   };
-  await setDoc(doc(db, 'users', uid), profile, { merge: true });
+
+  const patch: Record<string, unknown> = { ...profile };
+  if (input.role === 'teacher') {
+    patch.teamId = input.teamId ?? deleteField();
+    patch.studentId = input.studentId ?? deleteField();
+    if (!input.managedTeamIds) patch.managedTeamIds = deleteField();
+  } else {
+    patch.managedTeamIds = input.managedTeamIds ?? deleteField();
+  }
+
+  await setDoc(doc(db, 'users', uid), patch, { merge: true });
+  return profile;
+}
+
+/** Student shell → teacher (never completed student setup). */
+export async function convertIncompleteStudentToTeacher(
+  uid: string,
+  displayName?: string,
+): Promise<UserProfile> {
+  const name = displayName?.trim() || 'Teacher';
+  await updateUserProfile(uid, {
+    role: 'teacher',
+    displayName: name,
+    profileReady: false,
+    teamId: deleteField(),
+    studentId: deleteField(),
+    managedTeamIds: deleteField(),
+  });
+  const profile = await getUserProfile(uid);
+  if (!profile) throw new Error('Could not update profile.');
   return profile;
 }
 

@@ -79,7 +79,8 @@ export async function syncOutbox(): Promise<void> {
   const user = getCurrentUser();
   const profile = user ? await getUserProfile(user.uid) : null;
   const uid = user?.uid ?? null;
-  const canSyncScores = profile?.role === 'student' && Boolean(uid);
+  const canSyncScores =
+    (profile?.role === 'student' && Boolean(uid)) || profile?.role === 'teacher';
 
   const synced: number[] = [];
   const dropped: number[] = [];
@@ -95,8 +96,16 @@ export async function syncOutbox(): Promise<void> {
     try {
       const payload = JSON.parse(r.payload) as Record<string, unknown>;
       if (isScoreOrSession && uid) {
-        if (r.path.startsWith('scores/')) payload.userId = uid;
-        if (r.path.startsWith('sessions/')) payload.createdBy = uid;
+        if (profile?.role === 'teacher') {
+          if (r.path.startsWith('scores/')) payload.teacherId = uid;
+          if (r.path.startsWith('sessions/')) {
+            payload.createdBy = uid;
+            payload.teacherId = uid;
+          }
+        } else {
+          if (r.path.startsWith('scores/')) payload.userId = uid;
+          if (r.path.startsWith('sessions/')) payload.createdBy = uid;
+        }
       }
       await flushOutboxRow(r.path, payload);
       synced.push(r.id);
@@ -119,7 +128,8 @@ export async function clearStaleOutboxRows(): Promise<void> {
 
   const user = getCurrentUser();
   const profile = user ? await getUserProfile(user.uid) : null;
-  const canSyncScores = profile?.role === 'student' && Boolean(user?.uid);
+  const canSyncScores =
+    profile?.role === 'teacher' || (profile?.role === 'student' && Boolean(user?.uid));
 
   const stale = rows
     .filter(

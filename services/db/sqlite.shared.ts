@@ -259,6 +259,20 @@ export function createSqliteExports(getDatabase: () => Promise<SQLite.SQLiteData
     await resultsDao.update({ ...existing, synced: 1 });
   }
 
+  async function deleteSessionAndResult(sessionId: string): Promise<void> {
+    const database = await getDatabase();
+    await database.runAsync('DELETE FROM results WHERE id = ? OR session_id = ?', [
+      sessionId,
+      sessionId,
+    ]);
+    await database.runAsync('DELETE FROM sessions WHERE id = ?', [sessionId]);
+    const outbox = await getAllOutbox();
+    const stale = outbox
+      .filter((r) => r.path === `scores/${sessionId}` || r.path === `sessions/${sessionId}`)
+      .map((r) => r.id);
+    await deleteOutboxIds(stale);
+  }
+
   return {
     teamsDao,
     studentsDao,
@@ -270,5 +284,6 @@ export function createSqliteExports(getDatabase: () => Promise<SQLite.SQLiteData
     getAllOutbox,
     deleteOutboxIds,
     markResultSynced,
+    deleteSessionAndResult,
   };
 }

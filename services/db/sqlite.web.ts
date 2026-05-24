@@ -73,4 +73,5 @@ export const {
   getAllOutbox,
   deleteOutboxIds,
   markResultSynced,
+  deleteSessionAndResult,
 } = api;

@@ -30,6 +30,8 @@ type SessionState = {
   managedTeamIds: string[];
   activeTeamId: string | null;
   teamName: string;
+  /** Teacher display name, or mirror of student first name for students. */
+  displayName: string;
   studentFirstName: string;
   gradeLevel: GradeLevel;
   profileReady: boolean;
@@ -41,6 +43,7 @@ type SessionState = {
       Pick<
         SessionState,
         | 'teamName'
+        | 'displayName'
         | 'studentFirstName'
         | 'gradeLevel'
         | 'teamId'
@@ -67,6 +70,7 @@ export const useSessionStore = create<SessionState>()(
       managedTeamIds: [],
       activeTeamId: null,
       teamName: 'Demo Team',
+      displayName: '',
       studentFirstName: 'Student',
       gradeLevel: 'Year 6',
       profileReady: false,
@@ -84,6 +88,7 @@ export const useSessionStore = create<SessionState>()(
           managedTeamIds: [],
           activeTeamId: null,
           teamName: 'Demo Team',
+          displayName: '',
           studentFirstName: 'Student',
           profileReady: false,
         }),

@@ -9,6 +9,7 @@ import { ActivityIndicator, Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAuthChange } from '../services/auth';
 import { runMigrations } from '../services/db/sqlite';
+import { applySessionFromProfile } from '../lib/applySessionFromProfile';
 import { hydrateProfileFromCloud } from '../services/profiles';
 import { syncAll } from '../services/sync';
 import { clearStaleOutboxRows } from '../services/firestore';
@@ -23,22 +24,11 @@ async function applyProfileForUser(uid: string) {
   setProfileHydrated(false);
   try {
     const hydrated = await hydrateProfileFromCloud(uid);
-    const store = useSessionStore.getState();
-
     if (hydrated.role) {
-      store.setRole(hydrated.role);
+      applySessionFromProfile(hydrated);
+    } else {
+      useSessionStore.getState().setTeam({ profileReady: hydrated.profileReady });
     }
-
-    store.setTeam({
-      profileReady: hydrated.profileReady,
-      teamId: hydrated.teamId ?? null,
-      studentId: hydrated.studentId ?? null,
-      teamName: hydrated.teamName ?? store.teamName,
-      studentFirstName: hydrated.studentFirstName ?? store.studentFirstName,
-      managedTeamIds: hydrated.managedTeamIds ?? [],
-      activeTeamId: hydrated.activeTeamId ?? hydrated.teamId ?? null,
-      role: hydrated.role ?? store.role,
-    });
   } catch (e) {
     console.warn('[Ocupulse] profile hydration failed', e);
     useSessionStore.getState().setTeam({ profileReady: false });

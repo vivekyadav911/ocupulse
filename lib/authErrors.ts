@@ -7,7 +7,7 @@ export function formatAuthError(error: unknown): string {
       case 'auth/user-not-found':
         return 'Incorrect email or password.';
       case 'auth/email-already-in-use':
-        return 'An account with this email already exists. Try signing in.';
+        return 'An account with this email already exists. Sign in with the role you used when you signed up (Student or Teacher).';
       case 'auth/weak-password':
         return 'Password must be at least 6 characters.';
       case 'auth/invalid-email':

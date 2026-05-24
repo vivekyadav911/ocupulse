@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AuthScreenHeader } from '../../components/AuthScreenHeader';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
+import { TeamIdPreview } from '../../components/TeamIdPreview';
 import { createTeacherTeam } from '../../services/profiles';
 import { syncAll } from '../../services/sync';
 import { useAuthStore } from '../../store/authStore';
@@ -13,7 +14,6 @@ import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function TeacherSetupScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const setTeam = useSessionStore((s) => s.setTeam);
   const setRole = useSessionStore((s) => s.setRole);
   const [displayName, setDisplayName] = useState('');
@@ -49,9 +49,14 @@ export default function TeacherSetupScreen() {
         displayName: displayName.trim(),
         teamName: teamName.trim(),
       });
+      const name = displayName.trim();
       setRole('teacher');
       setTeam({
+        role: 'teacher',
         profileReady: true,
+        displayName: name,
+        studentFirstName: '',
+        studentId: null,
         teamName: team.name,
         teamId: team.id,
         managedTeamIds: [team.id],
@@ -68,7 +73,8 @@ export default function TeacherSetupScreen() {
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={styles.screen}>
+      <AuthScreenHeader backToLogin />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.brand}>Ocupulse</Text>
         <Card bordered>
@@ -89,6 +95,7 @@ export default function TeacherSetupScreen() {
             onChangeText={setTeamName}
             placeholder="Team Koala"
           />
+          <TeamIdPreview teamName={teamName} />
           <Button title="Continue" icon="checkmark" onPress={finish} disabled={busy} />
         </Card>
       </ScrollView>

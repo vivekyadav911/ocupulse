@@ -15,6 +15,7 @@
     "test": "jest",
     "a11y": "node scripts/lint-a11y.cjs",
     "secret-scan": "node scripts/secret-scan.cjs",
+    "firebase:setup": "node scripts/setup-firebase-env.cjs",
     "firebase:sync-env": "node scripts/sync-firebase-env.cjs",
     "firebase:deploy-rules": "npx -y firebase-tools@latest deploy --only firestore:rules",
     "prepare": "husky || true"

@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AuthScreenHeader } from '../../components/AuthScreenHeader';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
+import { TeamIdPreview } from '../../components/TeamIdPreview';
 import { setupStudentProfile } from '../../services/profiles';
 import { syncAll } from '../../services/sync';
 import { useAuthStore } from '../../store/authStore';
@@ -13,7 +14,6 @@ import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function StudentSetupScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const setTeam = useSessionStore((s) => s.setTeam);
   const setRole = useSessionStore((s) => s.setRole);
   const [firstName, setFirstName] = useState('');
@@ -60,11 +60,15 @@ export default function StudentSetupScreen() {
       });
       setRole('student');
       setTeam({
+        role: 'student',
         profileReady: true,
         teamId: team.id,
         studentId: student.id,
         teamName: team.name,
+        displayName: student.firstName,
         studentFirstName: student.firstName,
+        managedTeamIds: [],
+        activeTeamId: team.id,
       });
       useAuthStore.getState().setProfileHydrated(true);
       void syncAll();
@@ -77,7 +81,8 @@ export default function StudentSetupScreen() {
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={styles.screen}>
+      <AuthScreenHeader backToLogin />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.brand}>Ocupulse</Text>
         <Card bordered>
@@ -100,6 +105,7 @@ export default function StudentSetupScreen() {
             placeholder="Team Koala"
             accessibilityLabel="Team name"
           />
+          <TeamIdPreview teamName={teamName} />
           <Button title="Continue" icon="checkmark" onPress={finish} disabled={busy} />
         </Card>
       </ScrollView>

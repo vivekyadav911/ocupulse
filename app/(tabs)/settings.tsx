@@ -16,7 +16,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const { mode, toggle } = useThemeStore();
-  const { role, teamName, studentFirstName, gradeLevel, setTeam, resetProfile } = useSessionStore();
+  const { role, teamName, displayName, studentFirstName, gradeLevel, setTeam, resetProfile } =
+    useSessionStore();
   const styles = useThemedStyles((t) => ({
     label: {
       marginTop: t.spacing.md,
@@ -54,6 +55,14 @@ export default function SettingsScreen() {
         <Text style={styles.label}>Account</Text>
         <Text style={styles.now}>Role: {roleLabel}</Text>
         <Text style={styles.now}>
+          Name:{' '}
+          {role === 'teacher'
+            ? displayName || user?.displayName || '—'
+            : role === 'student'
+              ? studentFirstName
+              : '—'}
+        </Text>
+        <Text style={styles.now}>
           Email:{' '}
           {user?.email ??
             (user?.isAnonymous ? 'Anonymous (quick join)' : user ? 'Signed in' : 'Not signed in')}
@@ -68,8 +77,6 @@ export default function SettingsScreen() {
             {GRADES.map((g) => (
               <Button key={g} title={g} variant="secondary" onPress={() => pickGrade(g)} />
             ))}
-            <Text style={styles.label}>Student</Text>
-            <Text style={styles.now}>{studentFirstName}</Text>
           </>
         ) : null}
         <Text style={styles.label}>Team</Text>

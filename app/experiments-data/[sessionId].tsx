@@ -1,18 +1,25 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { ExperimentExportActions } from '../../components/experiments/ExperimentExportActions';
 import { ExperimentSummaryBody } from '../../components/experiments/ExperimentSummaryBody';
 import { PageTitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
-import { getExperimentRecord, type ExperimentRecord } from '../../services/experimentsData';
+import {
+  deleteExperimentRecord,
+  getExperimentRecord,
+  updateExperimentRecord,
+  type ExperimentRecord,
+} from '../../services/experimentsData';
+import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function ExperimentDetailScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const router = useRouter();
+  const isTeacher = useSessionStore((s) => s.role) === 'teacher';
   const [record, setRecord] = useState<ExperimentRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -50,6 +57,41 @@ export default function ExperimentDetailScreen() {
             <Text style={styles.id}>Session: {record.sessionId}</Text>
             {!record.synced ? <Text style={styles.id}>Status: pending cloud sync</Text> : null}
             <ExperimentExportActions record={record} />
+            {isTeacher ? (
+              <>
+                <Button
+                  title="Edit score (+1)"
+                  variant="secondary"
+                  icon="create-outline"
+                  onPress={() => {
+                    void updateExperimentRecord(record.sessionId, {
+                      score: record.score + 1,
+                    }).then((updated) => {
+                      if (updated) setRecord(updated);
+                    });
+                  }}
+                />
+                <Button
+                  title="Delete experiment"
+                  variant="danger"
+                  icon="trash-outline"
+                  onPress={() => {
+                    Alert.alert('Delete experiment', 'Remove this record permanently?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: () => {
+                          void deleteExperimentRecord(record.sessionId).then(() =>
+                            router.replace('/experiments-data'),
+                          );
+                        },
+                      },
+                    ]);
+                  }}
+                />
+              </>
+            ) : null}
             {record.activityType === 'sound' ? (
               <Button
                 title="View on sound map"

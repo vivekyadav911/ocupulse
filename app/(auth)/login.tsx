@@ -9,14 +9,21 @@ import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
 import { formatAuthError } from '../../lib/authErrors';
 import {
+  inferEffectiveRole,
+  isIncompleteStudentProfile,
+} from '../../lib/profileRole';
+import {
+  convertIncompleteStudentToTeacher,
   getUserProfile,
   registerStudentEmail,
   registerTeacherEmail,
   signInAnonymousStudent,
   signInEmail,
   signOutUser,
+  updateUserProfile,
 } from '../../services/auth';
 import { isFirebaseConfigured } from '../../services/firebase';
+import { applySessionFromProfile } from '../../lib/applySessionFromProfile';
 import { resolveAuthRedirect } from '../../lib/authRouting';
 import { useAuthStore } from '../../store/authStore';
 import { useSessionStore } from '../../store/sessionStore';
@@ -109,9 +116,14 @@ export default function LoginScreen() {
     footerText: { fontSize: t.typography.caption, color: t.colors.muted },
   }));
 
-  const finishAuth = (profileRole: AuthRole, ready: boolean) => {
+  const finishAuth = (profileRole: AuthRole, ready: boolean, name?: string) => {
+    applySessionFromProfile({
+      profileReady: ready,
+      role: profileRole,
+      displayName: name?.trim(),
+      studentFirstName: profileRole === 'student' ? name?.trim() : undefined,
+    });
     setRole(profileRole);
-    useSessionStore.getState().setTeam({ profileReady: ready, role: profileRole });
     useAuthStore.getState().setProfileHydrated(true);
     router.replace(
       ready
@@ -134,7 +146,7 @@ export default function LoginScreen() {
     setBusy(true);
     try {
       const cred = await signInEmail(email, password);
-      const profile = await getUserProfile(cred.user.uid);
+      let profile = await getUserProfile(cred.user.uid);
       if (!profile) {
         await signOutUser();
         Alert.alert(
@@ -143,17 +155,64 @@ export default function LoginScreen() {
         );
         return;
       }
+
+      const effectiveRole = await inferEffectiveRole(cred.user.uid, profile);
+      if (effectiveRole !== profile.role) {
+        await updateUserProfile(cred.user.uid, { role: effectiveRole });
+        profile = { ...profile, role: effectiveRole };
+      }
+
       if (profile.role !== role) {
-        await signOutUser();
+        const name = profile.displayName?.trim();
+        const nameHint = name ? ` (${name})` : '';
+
+        if (role === 'teacher' && isIncompleteStudentProfile(profile)) {
+          Alert.alert(
+            'Account type',
+            'This email was started as a student but setup was never finished. Continue as a teacher instead?',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => void signOutUser() },
+              {
+                text: 'Continue as teacher',
+                onPress: () => {
+                  void (async () => {
+                    try {
+                      const updated = await convertIncompleteStudentToTeacher(
+                        cred.user.uid,
+                        profile!.displayName,
+                      );
+                      finishAuth('teacher', updated.profileReady ?? false, updated.displayName);
+                    } catch (e) {
+                      await signOutUser();
+                      Alert.alert('Sign in', formatAuthError(e));
+                    }
+                  })();
+                },
+              },
+            ],
+          );
+          return;
+        }
+
         Alert.alert(
           'Sign in',
-          role === 'student'
-            ? 'This account is registered as a teacher. Switch to Teacher and try again.'
-            : 'This account is registered as a student. Switch to Student and try again.',
+          role === 'teacher'
+            ? `This email is registered as a student${nameHint}. Sign in under the Student tab, or use a different email for a teacher account.`
+            : `This email is registered as a teacher${nameHint}. Sign in under the Teacher tab.`,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => void signOutUser() },
+            {
+              text: role === 'teacher' ? 'Use Student tab' : 'Use Teacher tab',
+              onPress: () => {
+                setAuthRole(profile!.role);
+                finishAuth(profile!.role, profile!.profileReady ?? false, profile!.displayName);
+              },
+            },
+          ],
         );
         return;
       }
-      finishAuth(profile.role, profile.profileReady ?? false);
+      finishAuth(profile.role, profile.profileReady ?? false, profile.displayName);
     } catch (e) {
       Alert.alert('Sign in', formatAuthError(e));
     } finally {
@@ -182,10 +241,17 @@ export default function LoginScreen() {
     try {
       if (role === 'student') {
         await registerStudentEmail(email, password);
+        const localPart = email.trim().split('@')[0] || 'Student';
+        finishAuth('student', false, localPart);
       } else {
-        await registerTeacherEmail(email, password, displayName);
+        const cred = await registerTeacherEmail(email, password, displayName);
+        const profile = await getUserProfile(cred.user.uid);
+        finishAuth(
+          'teacher',
+          profile?.profileReady ?? false,
+          profile?.displayName ?? (displayName.trim() || email.trim().split('@')[0]),
+        );
       }
-      finishAuth(role, false);
     } catch (e) {
       Alert.alert('Sign up', formatAuthError(e));
     } finally {
@@ -206,7 +272,7 @@ export default function LoginScreen() {
         Alert.alert('Quick join', 'Could not create student profile.');
         return;
       }
-      finishAuth('student', profile.profileReady ?? false);
+      finishAuth('student', profile.profileReady ?? false, profile.displayName);
     } catch (e) {
       Alert.alert('Quick join', formatAuthError(e));
     } finally {
@@ -237,7 +303,7 @@ export default function LoginScreen() {
           <Text style={styles.statusText}>
             {firebaseReady
               ? 'Firebase connected'
-              : 'Firebase not configured — run npm run firebase:sync-env then npx expo start -c'}
+              : 'Firebase not configured — copy .env.example to .env, fill keys, run npm run firebase:setup, then npx expo start -c'}
           </Text>
         </View>
 

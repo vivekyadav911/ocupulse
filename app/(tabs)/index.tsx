@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import { ActivityRow } from '../../components/ActivityRow';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
@@ -8,23 +8,21 @@ import { Card } from '../../components/Card';
 import { PageTitle, TeamSubtitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
 import { StemmBannerAd } from '../../components/StemmBannerAd';
+import { ACTIVITY_CATALOG } from '../../lib/activities/catalog';
 import {
-  subscribeTeamScores,
+  approveTeamStudent,
+  createManagedTeam,
+  removeTeamStudent,
+} from '../../services/teamManagement';
+import {
+  subscribeTeacherTeams,
   subscribeTeamStudents,
   type StudentRosterRow,
+  type TeamSummary,
 } from '../../services/teacher';
+import { getCurrentUser } from '../../services/auth';
 import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
-
-const ACTIVITIES: { path: string; title: string }[] = [
-  { path: '/activity/parachute', title: 'Parachute Drop' },
-  { path: '/activity/sound', title: 'Sound Pollution Hunter' },
-  { path: '/activity/handfan', title: 'Hand Fan' },
-  { path: '/activity/earthquake', title: 'Earthquake Structure' },
-  { path: '/activity/humanperf', title: 'Human Performance Lab – Stretch Speed & Gracefulness' },
-  { path: '/activity/reaction', title: 'Reaction Board' },
-  { path: '/activity/breathing', title: 'Breathing Pace Trainer' },
-];
 
 function StudentHome() {
   const router = useRouter();
@@ -52,9 +50,9 @@ function StudentHome() {
       <Card bordered style={styles.card}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Activities</Text>
-          <Badge label={`${ACTIVITIES.length} Experiments`} />
+          <Badge label={`${ACTIVITY_CATALOG.length} Experiments`} />
         </View>
-        {ACTIVITIES.map((a) => (
+        {ACTIVITY_CATALOG.map((a) => (
           <ActivityRow key={a.path} title={a.title} onPress={() => router.push(a.path)} />
         ))}
       </Card>
@@ -70,12 +68,22 @@ function StudentHome() {
 
 function TeacherHome() {
   const router = useRouter();
+  const user = getCurrentUser();
   const activeTeamId = useSessionStore((s) => s.activeTeamId);
   const teamName = useSessionStore((s) => s.teamName);
+  const setTeam = useSessionStore((s) => s.setTeam);
   const [students, setStudents] = useState<StudentRosterRow[]>([]);
-  const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
+  const [teams, setTeams] = useState<TeamSummary[]>([]);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const styles = useThemedStyles((t) => ({
+    sectionHeader: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      marginBottom: t.spacing.md,
+    },
     sectionTitle: {
       fontSize: t.typography.subtitle,
       fontWeight: '800',
@@ -92,23 +100,46 @@ function TeacherHome() {
     name: { fontWeight: '700', color: t.colors.text, fontSize: t.typography.body },
     meta: { color: t.colors.muted, fontSize: t.typography.caption, marginTop: 2 },
     empty: { color: t.colors.muted, fontStyle: 'italic' as const },
+    teamChip: {
+      paddingHorizontal: t.spacing.sm,
+      paddingVertical: t.spacing.xs,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: t.colors.border,
+      marginRight: t.spacing.sm,
+      marginBottom: t.spacing.sm,
+    },
+    teamChipOn: { borderColor: t.colors.accent, backgroundColor: `${t.colors.accent}18` },
+    teamChipText: { color: t.colors.text, fontWeight: '600' as const, fontSize: t.typography.caption },
+    teamChipTextOn: { color: t.colors.accent, fontWeight: '800' as const },
+    chipRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, marginBottom: t.spacing.md },
+    input: {
+      borderWidth: 1,
+      borderColor: t.colors.border,
+      borderRadius: t.radii.md,
+      padding: t.spacing.sm,
+      color: t.colors.text,
+      marginBottom: t.spacing.sm,
+    },
+    rowActions: { flexDirection: 'row' as const, gap: t.spacing.sm, marginTop: t.spacing.xs },
+    action: { color: t.colors.accent, fontWeight: '700' as const, fontSize: t.typography.caption },
+    danger: { color: t.colors.danger, fontWeight: '700' as const, fontSize: t.typography.caption },
+    teamId: {
+      fontFamily: 'monospace',
+      color: t.colors.accent,
+      fontSize: t.typography.caption,
+      marginBottom: t.spacing.sm,
+    },
   }));
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    return subscribeTeacherTeams(user.uid, setTeams);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!activeTeamId) return;
     return subscribeTeamStudents(activeTeamId, setStudents);
-  }, [activeTeamId]);
-
-  useEffect(() => {
-    if (!activeTeamId) return;
-    return subscribeTeamScores(activeTeamId, 'all', (rows) => {
-      const counts: Record<string, number> = {};
-      for (const row of rows) {
-        if (!row.studentId) continue;
-        counts[row.studentId] = (counts[row.studentId] ?? 0) + 1;
-      }
-      setScoreCounts(counts);
-    });
   }, [activeTeamId]);
 
   const sortedStudents = useMemo(
@@ -116,37 +147,172 @@ function TeacherHome() {
     [students],
   );
 
+  const pending = sortedStudents.filter((s) => s.status === 'pending');
+  const active = sortedStudents.filter((s) => s.status !== 'pending');
+
+  const addTeam = async () => {
+    if (!newTeamName.trim()) {
+      Alert.alert('Team', 'Enter a team name.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const created = await createManagedTeam(newTeamName);
+      setTeam({
+        activeTeamId: created.id,
+        teamId: created.id,
+        teamName: created.name,
+        managedTeamIds: created.managedTeamIds,
+      });
+      setNewTeamName('');
+      Alert.alert('Team created', `Team ID: ${created.id}`);
+    } catch (e) {
+      Alert.alert('Team', e instanceof Error ? e.message : 'Could not create team');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <ScreenShell>
       <PageTitle title="Teacher dashboard" />
       <TeamSubtitle team={teamName} />
+      {activeTeamId ? (
+        <Text style={styles.teamId}>Team ID: {activeTeamId}</Text>
+      ) : null}
+
+      <Card bordered style={styles.card}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Activities</Text>
+          <Badge label={`${ACTIVITY_CATALOG.length} Experiments`} />
+        </View>
+        <Text style={styles.sub}>
+          Same experiments students run — open to view your team&apos;s saved results for each
+          activity.
+        </Text>
+        {ACTIVITY_CATALOG.map((a) => (
+          <ActivityRow
+            key={a.path}
+            title={a.title}
+            onPress={() =>
+              router.push({
+                pathname: '/experiments-data',
+                params: { activity: a.key },
+              })
+            }
+          />
+        ))}
+      </Card>
+
+      <Card bordered style={styles.card}>
+        <Text style={styles.sectionTitle}>Your teams</Text>
+        <View style={styles.chipRow}>
+          {teams.map((t) => (
+            <Pressable
+              key={t.id}
+              style={[styles.teamChip, activeTeamId === t.id && styles.teamChipOn]}
+              onPress={() =>
+                setTeam({ activeTeamId: t.id, teamId: t.id, teamName: t.name })
+              }
+            >
+              <Text
+                style={[
+                  styles.teamChipText,
+                  activeTeamId === t.id && styles.teamChipTextOn,
+                ]}
+              >
+                {t.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="New team name"
+          placeholderTextColor={styles.sub.color}
+          value={newTeamName}
+          onChangeText={setNewTeamName}
+        />
+        <Button title="Create team" variant="secondary" onPress={addTeam} disabled={busy} />
+      </Card>
+
       <Card bordered style={styles.card}>
         <Text style={styles.sectionTitle}>Team roster</Text>
         <Text style={styles.sub}>
-          View student profiles and experiment results. Students run activities from their own
-          accounts.
+          Approve pending students, remove members, or open profiles. Students join with your team
+          name and appear here.
         </Text>
         {!activeTeamId ? (
-          <Text style={styles.empty}>No team configured.</Text>
-        ) : sortedStudents.length === 0 ? (
-          <Text style={styles.empty}>
-            No students yet. Share team name &quot;{teamName}&quot; so students can join.
-          </Text>
+          <Text style={styles.empty}>Select or create a team above.</Text>
         ) : (
-          sortedStudents.map((s) => (
-            <Pressable
-              key={s.id}
-              style={styles.row}
-              onPress={() => router.push(`/(tabs)/student/${s.id}`)}
-            >
-              <Text style={styles.name}>{s.firstName}</Text>
-              <Text style={styles.meta}>
-                {s.email ?? 'No email'} · {scoreCounts[s.id] ?? 0} experiments
+          <>
+            {pending.length > 0 ? (
+              <>
+                <Text style={styles.meta}>Pending approval</Text>
+                {pending.map((s) => (
+                  <View key={s.id} style={styles.row}>
+                    <Text style={styles.name}>{s.firstName}</Text>
+                    <Text style={styles.meta}>{s.email ?? 'No email'}</Text>
+                    <View style={styles.rowActions}>
+                      <Pressable
+                        onPress={() => {
+                          void approveTeamStudent(activeTeamId, s.id).catch((e) =>
+                            Alert.alert('Approve', e instanceof Error ? e.message : 'Failed'),
+                          );
+                        }}
+                      >
+                        <Text style={styles.action}>Accept</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          void removeTeamStudent(activeTeamId, s.id).catch((e) =>
+                            Alert.alert('Remove', e instanceof Error ? e.message : 'Failed'),
+                          );
+                        }}
+                      >
+                        <Text style={styles.danger}>Decline</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </>
+            ) : null}
+            {active.length === 0 && pending.length === 0 ? (
+              <Text style={styles.empty}>
+                No students yet. Share team name &quot;{teamName}&quot; so students can join.
               </Text>
-            </Pressable>
-          ))
+            ) : (
+              active.map((s) => (
+                <View key={s.id} style={styles.row}>
+                  <Pressable onPress={() => router.push(`/(tabs)/student/${s.id}`)}>
+                    <Text style={styles.name}>{s.firstName}</Text>
+                    <Text style={styles.meta}>{s.email ?? 'No email'} · Active</Text>
+                  </Pressable>
+                  <View style={styles.rowActions}>
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert('Remove student', `Remove ${s.firstName} from the team?`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: () => {
+                              void removeTeamStudent(activeTeamId, s.id);
+                            },
+                          },
+                        ]);
+                      }}
+                    >
+                      <Text style={styles.danger}>Remove</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))
+            )}
+          </>
         )}
       </Card>
+
       <Button
         title="Experiments Data"
         variant="accent"

@@ -124,11 +124,13 @@ export async function setupStudentProfile(input: {
   };
 
   await studentsDao.insert(student);
+  const joinStatus = team.teacherId ? 'pending' : 'active';
   await insertOutbox(`teams/${team.id}/students/${student.id}`, {
     firstName: student.firstName,
     uid: student.uid,
     email: user.email ?? '',
     teamId: team.id,
+    status: joinStatus,
     createdAt: Date.now(),
   });
 
@@ -198,6 +200,7 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
   studentId?: string;
   teamName?: string;
   studentFirstName?: string;
+  displayName?: string;
   role?: 'teacher' | 'student';
   managedTeamIds?: string[];
   activeTeamId?: string;
@@ -217,6 +220,7 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
     return {
       profileReady,
       role: 'teacher',
+      displayName: profile.displayName,
       managedTeamIds,
       activeTeamId: managedTeamIds[0],
       teamName,
@@ -225,7 +229,13 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
 
   const { teamId, studentId } = profile;
   const profileReady = profile.profileReady === true && Boolean(teamId && studentId);
-  if (!teamId || !studentId) return { profileReady: false, role: 'student' };
+  if (!teamId || !studentId) {
+    return {
+      profileReady: false,
+      role: 'student',
+      displayName: profile.displayName,
+    };
+  }
 
   await pullTeamRoster(teamId);
   const team = await teamsDao.findById(teamId);
@@ -238,5 +248,6 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
     studentId,
     teamName: team?.name,
     studentFirstName: student?.firstName ?? profile.displayName,
+    displayName: student?.firstName ?? profile.displayName,
   };
 }
