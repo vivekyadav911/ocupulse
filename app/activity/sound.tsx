@@ -332,7 +332,7 @@ export default function SoundScreen() {
       await submitSoundActivity(payload);
 
       const sessionSummary = summarizeSoundSession(state.captures);
-      await saveActivityResult({
+      const sessionId = await saveActivityResult({
         activityType: 'sound',
         score: sessionSummary?.avgDb ?? 0,
         payload: {
@@ -357,6 +357,7 @@ export default function SoundScreen() {
       });
 
       setState((s) => ({ ...s, uploadStatus: 'success', uploadError: null }));
+      router.push(`/results/${sessionId}`);
     } catch (e) {
       setState((s) => ({
         ...s,

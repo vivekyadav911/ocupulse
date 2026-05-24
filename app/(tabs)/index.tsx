@@ -21,7 +21,7 @@ const ACTIVITIES: { path: string; title: string }[] = [
   { path: '/activity/sound', title: 'Sound Pollution Hunter' },
   { path: '/activity/handfan', title: 'Hand Fan' },
   { path: '/activity/earthquake', title: 'Earthquake Structure' },
-  { path: '/activity/humanperf', title: 'Human Performance Lab' },
+  { path: '/activity/humanperf', title: 'Human Performance Lab – Stretch Speed & Gracefulness' },
   { path: '/activity/reaction', title: 'Reaction Board' },
   { path: '/activity/breathing', title: 'Breathing Pace Trainer' },
 ];
@@ -59,8 +59,14 @@ function StudentHome() {
         ))}
       </Card>
       <Button
-        title="Sound results map"
+        title="Experiments Data"
         variant="accent"
+        icon="folder-open-outline"
+        onPress={() => router.push('/experiments-data')}
+      />
+      <Button
+        title="Sound results map"
+        variant="secondary"
         icon="map-outline"
         onPress={() => router.push('/results/sound-map')}
       />
@@ -147,6 +153,12 @@ function TeacherHome() {
           ))
         )}
       </Card>
+      <Button
+        title="Experiments Data"
+        variant="accent"
+        icon="folder-open-outline"
+        onPress={() => router.push('/experiments-data')}
+      />
     </ScreenShell>
   );
 }

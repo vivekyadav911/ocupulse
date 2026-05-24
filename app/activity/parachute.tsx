@@ -72,7 +72,6 @@ function ParachuteScreenInner() {
   const [fallElapsed, setFallElapsed] = useState(0);
   const [fallRunning, setFallRunning] = useState(false);
   const [showLiveGraphs, setShowLiveGraphs] = useState(false);
-  const [savingLocal, setSavingLocal] = useState(false);
 
   const location = useLocation();
   const calc = useMemo(() => activeTabCalc(state), [state]);
@@ -271,6 +270,23 @@ function ParachuteScreenInner() {
     fallStartRef.current = null;
   };
 
+  const persistParachuteResults = async () => {
+    const best = allRuns
+      .filter((r) => r.finalVelocityMps != null)
+      .sort((a, b) => (a.finalVelocityMps ?? 999) - (b.finalVelocityMps ?? 999))[0];
+    return saveActivityResult({
+      activityType: 'parachute',
+      score: best?.finalVelocityMps != null ? Math.round(best.finalVelocityMps * 100) / 100 : 0,
+      payload: {
+        runs: allRuns,
+        reflection: state.reflection,
+        massKg: state.massKg,
+        primaryMode: state.primaryMode,
+        tabs: state.tabs,
+      },
+    });
+  };
+
   const uploadResults = async () => {
     setState((s) => ({ ...s, uploadStatus: 'uploading', uploadError: null }));
     try {
@@ -288,38 +304,16 @@ function ParachuteScreenInner() {
           : null,
       );
       await submitParachuteActivity(payload);
+      const sessionId = await persistParachuteResults();
       clearDraft();
       setState((s) => ({ ...s, uploadStatus: 'success', uploadError: null }));
+      router.push(`/results/${sessionId}`);
     } catch (e) {
       setState((s) => ({
         ...s,
         uploadStatus: 'error',
         uploadError: e instanceof Error ? e.message : 'Upload failed',
       }));
-    }
-  };
-
-  const saveLocally = async () => {
-    setSavingLocal(true);
-    try {
-      const best = allRuns
-        .filter((r) => r.finalVelocityMps != null)
-        .sort((a, b) => (a.finalVelocityMps ?? 999) - (b.finalVelocityMps ?? 999))[0];
-      const sessionId = await saveActivityResult({
-        activityType: 'parachute',
-        score: best?.finalVelocityMps != null ? Math.round(best.finalVelocityMps * 100) / 100 : 0,
-        payload: {
-          runs: allRuns,
-          reflection: state.reflection,
-          massKg: state.massKg,
-          primaryMode: state.primaryMode,
-          tabs: state.tabs,
-        },
-      });
-      clearDraft();
-      router.push(`/results/${sessionId}`);
-    } finally {
-      setSavingLocal(false);
     }
   };
 
@@ -641,12 +635,6 @@ function ParachuteScreenInner() {
             title={state.uploadStatus === 'uploading' ? 'Uploading…' : 'Upload results'}
             onPress={() => void uploadResults()}
             disabled={state.uploadStatus === 'uploading'}
-          />
-          <Button
-            title={savingLocal ? 'Saving…' : 'Save locally'}
-            variant="secondary"
-            onPress={() => void saveLocally()}
-            disabled={savingLocal}
           />
           <Button
             title="View leaderboard"

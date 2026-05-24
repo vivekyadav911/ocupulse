@@ -8,6 +8,7 @@ import {
   formatLeaderboardMeta,
   formatLeaderboardPrimaryLabel,
 } from '../../lib/leaderboard/formatLeaderRow';
+import { ACTIVITY_LABELS, activityDisplayName } from '../../lib/activities/labels';
 import type { LeaderboardFilter, LeaderRow } from '../../services/leaderboard';
 import { subscribeLeaderboard } from '../../services/leaderboard';
 import { syncOutbox } from '../../services/firestore';
@@ -15,23 +16,7 @@ import { subscribeTeamScores } from '../../services/teacher';
 import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
-const FILTERS: { key: LeaderboardFilter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'reaction', label: 'Reaction' },
-  { key: 'sound', label: 'Sound' },
-  { key: 'earthquake', label: 'Earthquake' },
-  { key: 'humanperf', label: 'Human perf' },
-  { key: 'parachute', label: 'Parachute' },
-  { key: 'handfan', label: 'Hand fan' },
-  { key: 'breathing', label: 'Breathing' },
-];
-
 const springLayout = Layout.springify().damping(18).stiffness(120);
-
-function activityLabel(activityType: string): string {
-  const found = FILTERS.find((f) => f.key === activityType);
-  return found?.label ?? activityType;
-}
 
 export default function LeaderboardScreen() {
   const role = useSessionStore((s) => s.role);
@@ -134,7 +119,7 @@ export default function LeaderboardScreen() {
       <PageTitle eyebrow="Rankings" title="Board" />
       <Text style={styles.sub}>{subtitle}</Text>
       <View style={styles.chips}>
-        {FILTERS.map((f) => {
+        {ACTIVITY_LABELS.map((f) => {
           const on = filter === f.key;
           return (
             <Pressable
@@ -161,7 +146,7 @@ export default function LeaderboardScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.team}>{formatLeaderboardPrimaryLabel(item)}</Text>
                 <Text style={styles.meta}>
-                  {formatLeaderboardMeta(item, filter, activityLabel)}
+                  {formatLeaderboardMeta(item, filter, activityDisplayName)}
                 </Text>
               </View>
               {movedUp.has(item.id) ? <Text style={styles.up}>▲</Text> : null}

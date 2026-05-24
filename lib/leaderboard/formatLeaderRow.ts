@@ -11,6 +11,11 @@ function num(payload: Record<string, unknown>, key: string): number | undefined 
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 }
 
+function str(payload: Record<string, unknown>, key: string): string | undefined {
+  const v = payload[key];
+  return v != null ? String(v) : undefined;
+}
+
 /** Human-readable primary score + detail for leaderboard rows. */
 export function formatLeaderboardDisplay(
   activityType: string,
@@ -39,13 +44,41 @@ export function formatLeaderboardDisplay(
       };
     }
     case 'earthquake': {
+      const bestPeak = num(payload, 'bestPeakCm');
+      const summary = payload.summary as Record<string, unknown> | undefined;
+      const peak = bestPeak ?? (summary ? num(summary, 'bestPeakCm') : undefined);
       const rms = num(payload, 'rmsG');
+      if (peak != null) {
+        return {
+          scoreText: `${Math.round(score)}`,
+          detail: `stability · best ${peak.toFixed(2)} cm`,
+        };
+      }
       return {
         scoreText: `${Math.round(score)}`,
         detail: rms != null ? `stability · wobble ${rms.toFixed(3)} g` : 'stability score',
       };
     }
     case 'humanperf': {
+      const attempts = payload.attempts;
+      if (Array.isArray(attempts) && attempts.length > 0) {
+        const avgs = attempts
+          .map((t) => {
+            const row = t as Record<string, unknown>;
+            return num(row, 'avgJerkMm');
+          })
+          .filter((v): v is number => v != null);
+        const best = avgs.length ? Math.min(...avgs) : undefined;
+        const summary = payload.summary as Record<string, unknown> | undefined;
+        const hardest = summary ? str(summary, 'hardestMovementLabel') : undefined;
+        return {
+          scoreText: `${Math.round(score)}`,
+          detail:
+            best != null
+              ? `smoothness · best ${best.toFixed(1)} mm avg jerk${hardest ? ` · hardest ${hardest}` : ''}`
+              : 'stretch speed & gracefulness',
+        };
+      }
       const jerk = num(payload, 'jerkRms');
       return {
         scoreText: `${Math.round(score)}`,
@@ -63,6 +96,24 @@ export function formatLeaderboardDisplay(
       };
     }
     case 'handfan': {
+      const trials = payload.trials;
+      if (Array.isArray(trials) && trials.length > 0) {
+        const angles = trials
+          .map((t) => {
+            const row = t as Record<string, unknown>;
+            return num(row, 'actualAngleDeg');
+          })
+          .filter((v): v is number => v != null);
+        const avg =
+          angles.length > 0
+            ? Math.round(angles.reduce((a, b) => a + b, 0) / angles.length)
+            : Math.round(score);
+        const material = typeof payload.material === 'string' ? payload.material : '';
+        return {
+          scoreText: `${avg}°`,
+          detail: material ? `avg bend · ${material}` : 'hand fan challenge',
+        };
+      }
       const deg = num(payload, 'bendAngleDeg') ?? score;
       const shift = num(payload, 'shiftPx');
       return {
