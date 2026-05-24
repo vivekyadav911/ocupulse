@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Prevent Cursor from appearing as a GitHub contributor via Co-authored-by trailers.
+if [ -n "$1" ] && [ -f "$1" ]; then
+  grep -v '^Co-authored-by: Cursor' "$1" > "$1.__strip" && mv "$1.__strip" "$1"
+fi

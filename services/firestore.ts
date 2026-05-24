@@ -88,9 +88,19 @@ export async function writeSessionOptimistic(input: {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const user = getCurrentUser();
   const userId = input.userId ?? user?.uid ?? null;
-  const sessionStart = Date.now();
-  const teamName = input.teamName.trim() || 'Demo Team';
   const submittedAt = Date.now();
+  const teamName = input.teamName.trim() || 'Demo Team';
+
+  await sessionsDao.insert({
+    id,
+    teamId: input.teamId ?? null,
+    activityType: input.activityType,
+    startTime: submittedAt,
+    studentId: input.studentId ?? null,
+    createdBy: userId,
+    synced: 0,
+  });
+
   const storedPayload = {
     ...input.payload,
     teamName,
@@ -98,16 +108,6 @@ export async function writeSessionOptimistic(input: {
     score: input.score,
     submittedAt,
   };
-
-  await sessionsDao.insert({
-    id,
-    teamId: input.teamId ?? null,
-    activityType: input.activityType,
-    startTime: sessionStart,
-    studentId: input.studentId ?? null,
-    createdBy: userId,
-    synced: 0,
-  });
 
   await resultsDao.insert({
     id,
@@ -123,15 +123,12 @@ export async function writeSessionOptimistic(input: {
   });
 
   const docPayload = {
-    teamName,
+    ...storedPayload,
     teamId: input.teamId ?? null,
     studentId: input.studentId ?? null,
     userId,
     sessionId: id,
-    activityType: input.activityType,
-    score: input.score,
     mediaUrls: input.mediaUrls ?? [],
-    ...storedPayload,
     updatedAt: submittedAt,
   };
 
@@ -140,9 +137,9 @@ export async function writeSessionOptimistic(input: {
     teamId: input.teamId ?? null,
     studentId: input.studentId ?? null,
     activityType: input.activityType,
-    startTime: sessionStart,
+    startTime: submittedAt,
     createdBy: userId,
-    updatedAt: Date.now(),
+    updatedAt: submittedAt,
   });
 
   void syncOutbox();

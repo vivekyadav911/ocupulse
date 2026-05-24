@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { UserProfile, UserRole } from './db/types';
-import { getFirebaseApp, getFirestoreDb } from './firebase';
+import { getFirebaseApp, getFirestoreDb, isFirebaseConfigured } from './firebase';
 
 function getAuthInstance() {
   const app = getFirebaseApp();
@@ -19,6 +19,10 @@ function getAuthInstance() {
 }
 
 export function onAuthChange(cb: (u: User | null) => void) {
+  if (!isFirebaseConfigured()) {
+    cb(null);
+    return () => {};
+  }
   try {
     const auth = getAuthInstance();
     return onAuthStateChanged(auth, cb);
