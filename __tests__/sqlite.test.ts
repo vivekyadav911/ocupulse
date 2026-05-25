@@ -12,7 +12,7 @@ import {
   teamsDao,
 } from '../services/db/sqlite';
 
-let mockNativeDb: Database.Database;
+let mockNativeDb: Database.Database | undefined;
 
 function createMockAdapter(database: Database.Database): SQLite.SQLiteDatabase {
   return {
@@ -59,12 +59,13 @@ describe('sqlite DAOs', () => {
 
   afterEach(async () => {
     await resetDbForTests();
-    mockNativeDb.close();
+    mockNativeDb?.close();
+    mockNativeDb = undefined;
   });
 
   it('runs 002_indexes migration on a fresh database', async () => {
     await runMigrations();
-    const indexes = mockNativeDb
+    const indexes = mockNativeDb!
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'`)
       .all() as { name: string }[];
     const names = indexes.map((i) => i.name);

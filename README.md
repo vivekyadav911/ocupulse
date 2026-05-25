@@ -25,9 +25,10 @@ Place `google-services.json` and `GoogleService-Info.plist` at the **repo root**
 - `npm start` — Expo dev server  
 - `npm run lint` — ESLint  
 - `npm run secret-scan` — block committed API keys / AdMob units  
-- `npm test` — Jest (179 tests)  
+- `npm test` — Jest (179 tests). If SQLite tests fail with `NODE_MODULE_VERSION`, run `npm run rebuild:native` after changing Node.js version.  
 - `npm run firebase:setup` — create `.env` from Firebase CLI  
-- `npm run firebase:deploy-firestore` — deploy rules + indexes (`firebase login` first)  
+- `npm run firebase:login` — sign in to Firebase (no global CLI install needed)  
+- `npm run firebase:deploy-firestore` — deploy rules + indexes after login  
 - `npm run android` / `npm run ios`
 
 ## Docs
