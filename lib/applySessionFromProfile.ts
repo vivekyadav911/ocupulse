@@ -1,5 +1,5 @@
 import type { UserRole } from '../services/db/types';
-import { useSessionStore } from '../store/sessionStore';
+import { useSessionStore, type TeamMemberStatus } from '../store/sessionStore';
 
 export type HydratedSession = {
   profileReady: boolean;
@@ -11,6 +11,7 @@ export type HydratedSession = {
   displayName?: string;
   managedTeamIds?: string[];
   activeTeamId?: string | null;
+  teamMemberStatus?: TeamMemberStatus;
 };
 
 /** Applies cloud/local profile to session store without keeping stale fields from a prior account. */
@@ -29,6 +30,7 @@ export function applySessionFromProfile(hydrated: HydratedSession) {
       teamName: hydrated.teamName ?? 'Demo Team',
       managedTeamIds: hydrated.managedTeamIds ?? [],
       activeTeamId: hydrated.activeTeamId ?? hydrated.teamId ?? null,
+      teamMemberStatus: 'none',
     });
     return;
   }
@@ -46,6 +48,7 @@ export function applySessionFromProfile(hydrated: HydratedSession) {
       teamName: hydrated.teamName ?? 'Demo Team',
       managedTeamIds: [],
       activeTeamId: hydrated.teamId ?? null,
+      teamMemberStatus: hydrated.teamMemberStatus ?? 'active',
     });
     return;
   }

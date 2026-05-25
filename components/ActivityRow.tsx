@@ -6,9 +6,10 @@ import { useAppTheme } from '../theme/useAppTheme';
 type ActivityRowProps = {
   title: string;
   onPress: () => void;
+  disabled?: boolean;
 };
 
-export function ActivityRow({ title, onPress }: ActivityRowProps) {
+export function ActivityRow({ title, onPress, disabled }: ActivityRowProps) {
   const { colors, spacing, radii, typography } = useAppTheme();
   const styles = useMemo(
     () =>
@@ -37,8 +38,9 @@ export function ActivityRow({ title, onPress }: ActivityRowProps) {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.row, { opacity: pressed ? 0.85 : 1 }]}
-      onPress={onPress}
+      style={({ pressed }) => [styles.row, { opacity: disabled ? 0.45 : pressed ? 0.85 : 1 }]}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityHint={`Opens ${title}`}

@@ -1,4 +1,5 @@
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
+import type { TeamMemberStatus } from '../store/sessionStore';
 import { getCurrentUser, getUserProfile, updateUserProfile } from './auth';
 import { insertOutbox, studentsDao, teamsDao } from './db/sqlite';
 import type { Student, Team } from './db/types';
@@ -145,6 +146,42 @@ export async function setupStudentProfile(input: {
   return { team, student };
 }
 
+export async function fetchStudentMemberStatus(
+  teamId: string,
+  studentId: string,
+): Promise<TeamMemberStatus> {
+  const db = getFirestoreDb();
+  if (!db) return 'active';
+  const snap = await getDoc(doc(db, 'teams', teamId, 'students', studentId));
+  if (!snap.exists()) return 'none';
+  const status = String(snap.data().status ?? 'active');
+  return status === 'pending' ? 'pending' : 'active';
+}
+
+export function subscribeStudentMemberStatus(
+  teamId: string,
+  studentId: string,
+  onStatus: (status: TeamMemberStatus) => void,
+): () => void {
+  const db = getFirestoreDb();
+  if (!db) {
+    onStatus('active');
+    return () => {};
+  }
+  return onSnapshot(
+    doc(db, 'teams', teamId, 'students', studentId),
+    (snap) => {
+      if (!snap.exists()) {
+        onStatus('none');
+        return;
+      }
+      const status = String(snap.data().status ?? 'active');
+      onStatus(status === 'pending' ? 'pending' : 'active');
+    },
+    () => onStatus('active'),
+  );
+}
+
 export async function getTeamTeacherId(teamId: string | null): Promise<string | null> {
   if (!teamId) return null;
   const local = await teamsDao.findById(teamId);
@@ -204,6 +241,7 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
   role?: 'teacher' | 'student';
   managedTeamIds?: string[];
   activeTeamId?: string;
+  teamMemberStatus?: TeamMemberStatus;
 }> {
   const profile = await getUserProfile(uid);
   if (!profile) return { profileReady: false };
@@ -240,6 +278,7 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
   await pullTeamRoster(teamId);
   const team = await teamsDao.findById(teamId);
   const student = await studentsDao.findById(studentId);
+  const teamMemberStatus = await fetchStudentMemberStatus(teamId, studentId);
 
   return {
     profileReady,
@@ -249,5 +288,6 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
     teamName: team?.name,
     studentFirstName: student?.firstName ?? profile.displayName,
     displayName: student?.firstName ?? profile.displayName,
+    teamMemberStatus,
   };
 }

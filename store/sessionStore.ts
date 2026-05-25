@@ -14,6 +14,9 @@ export type GradeLevel =
   | 'Year 10'
   | 'High School';
 
+/** Roster approval on a teacher-managed team (`pending` until teacher accepts). */
+export type TeamMemberStatus = 'pending' | 'active' | 'none';
+
 export type ActivityType =
   | 'parachute'
   | 'sound'
@@ -35,6 +38,7 @@ type SessionState = {
   studentFirstName: string;
   gradeLevel: GradeLevel;
   profileReady: boolean;
+  teamMemberStatus: TeamMemberStatus;
   currentActivity: ActivityType | null;
   currentSessionId: string | null;
   setRole: (role: UserRole | null) => void;
@@ -52,6 +56,7 @@ type SessionState = {
         | 'role'
         | 'managedTeamIds'
         | 'activeTeamId'
+        | 'teamMemberStatus'
       >
     >,
   ) => void;
@@ -74,6 +79,7 @@ export const useSessionStore = create<SessionState>()(
       studentFirstName: 'Student',
       gradeLevel: 'Year 6',
       profileReady: false,
+      teamMemberStatus: 'none',
       currentActivity: null,
       currentSessionId: null,
       setRole: (role) => set({ role }),
@@ -91,6 +97,7 @@ export const useSessionStore = create<SessionState>()(
           displayName: '',
           studentFirstName: 'Student',
           profileReady: false,
+          teamMemberStatus: 'none',
         }),
       showAdsInterstitial: () => {
         const g = get().gradeLevel;

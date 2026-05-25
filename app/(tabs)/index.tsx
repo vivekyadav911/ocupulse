@@ -9,6 +9,9 @@ import { PageTitle, TeamSubtitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
 import { StemmBannerAd } from '../../components/StemmBannerAd';
 import { ACTIVITY_CATALOG } from '../../lib/activities/catalog';
+import { canStudentRunExperiments } from '../../lib/studentAccess';
+import { PendingApprovalBanner } from '../../components/PendingApprovalBanner';
+import { subscribeStudentMemberStatus } from '../../services/profiles';
 import {
   approveTeamStudent,
   createManagedTeam,
@@ -27,6 +30,19 @@ import { useThemedStyles } from '../../theme/themedStyles';
 function StudentHome() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
+  const teamId = useSessionStore((s) => s.teamId);
+  const studentId = useSessionStore((s) => s.studentId);
+  const teamMemberStatus = useSessionStore((s) => s.teamMemberStatus);
+  const setTeam = useSessionStore((s) => s.setTeam);
+  const canRun = canStudentRunExperiments(teamMemberStatus);
+
+  useEffect(() => {
+    if (!teamId || !studentId) return;
+    return subscribeStudentMemberStatus(teamId, studentId, (status) => {
+      setTeam({ teamMemberStatus: status });
+    });
+  }, [teamId, studentId, setTeam]);
+
   const styles = useThemedStyles((t) => ({
     sectionHeader: {
       flexDirection: 'row' as const,
@@ -47,13 +63,19 @@ function StudentHome() {
       <PageTitle title="Dashboard" />
       <TeamSubtitle team={team} />
       <StemmBannerAd />
+      {!canRun ? <PendingApprovalBanner /> : null}
       <Card bordered style={styles.card}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Activities</Text>
           <Badge label={`${ACTIVITY_CATALOG.length} Experiments`} />
         </View>
         {ACTIVITY_CATALOG.map((a) => (
-          <ActivityRow key={a.path} title={a.title} onPress={() => router.push(a.path)} />
+          <ActivityRow
+            key={a.path}
+            title={a.title}
+            onPress={() => (canRun ? router.push(a.path) : undefined)}
+            disabled={!canRun}
+          />
         ))}
       </Card>
       <Button
@@ -61,6 +83,7 @@ function StudentHome() {
         variant="accent"
         icon="folder-open-outline"
         onPress={() => router.push('/experiments-data')}
+        disabled={!canRun}
       />
     </ScreenShell>
   );

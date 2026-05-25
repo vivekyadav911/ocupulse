@@ -56,6 +56,7 @@ export default function StudentSetupScreen() {
         firstName: firstName.trim(),
         teamName: teamName.trim(),
       });
+      const needsApproval = Boolean(team.teacherId);
       applySessionFromProfile({
         role: 'student',
         profileReady: true,
@@ -65,6 +66,7 @@ export default function StudentSetupScreen() {
         displayName: student.firstName,
         studentFirstName: student.firstName,
         activeTeamId: team.id,
+        teamMemberStatus: needsApproval ? 'pending' : 'active',
       });
       useAuthStore.getState().setProfileHydrated(true);
       void syncAll();
