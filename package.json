@@ -18,6 +18,8 @@
     "firebase:setup": "node scripts/setup-firebase-env.cjs",
     "firebase:sync-env": "node scripts/sync-firebase-env.cjs",
     "firebase:deploy-rules": "npx -y firebase-tools@latest deploy --only firestore:rules",
+    "firebase:deploy-indexes": "npx -y firebase-tools@latest deploy --only firestore:indexes",
+    "firebase:deploy-firestore": "npx -y firebase-tools@latest deploy --only firestore:rules,firestore:indexes",
     "prepare": "husky || true"
   },
   "lint-staged": {
