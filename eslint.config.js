@@ -5,7 +5,10 @@ module.exports = [
   ...expoConfig,
   {
     plugins: { prettier: prettierPlugin },
-    rules: { 'prettier/prettier': 'warn' },
+    rules: {
+      'prettier/prettier': 'warn',
+      'import/no-unresolved': ['error', { ignore: ['^@expo/', '^expo-'] }],
+    },
   },
   {
     ignores: [

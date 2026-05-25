@@ -1,4 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { experimentsScopeFromParam, type ExperimentsScope } from '../../lib/experiments/scope';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { ACTIVITY_LABELS, activityDisplayName } from '../../lib/activities/labels';
@@ -23,11 +24,13 @@ import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function ExperimentsDataListScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ activity?: string }>();
+  const params = useLocalSearchParams<{ activity?: string; scope?: string }>();
   const role = useSessionStore((s) => s.role);
   const activeTeamId = useSessionStore((s) => s.activeTeamId);
   const teamName = useSessionStore((s) => s.teamName);
   const isTeacher = role === 'teacher';
+  const scope: ExperimentsScope = isTeacher ? experimentsScopeFromParam(params.scope) : 'personal';
+  const teamMode = isTeacher && scope === 'team';
   const initialFilter =
     params.activity && params.activity !== 'all' ? (params.activity as LeaderboardFilter) : 'all';
   const [rows, setRows] = useState<ExperimentRecord[]>([]);
@@ -78,7 +81,7 @@ export default function ExperimentsDataListScreen() {
   );
 
   useEffect(() => {
-    if (isTeacher) {
+    if (teamMode) {
       studentSubRef.current = null;
       if (!activeTeamId) {
         setRows([]);
@@ -104,15 +107,14 @@ export default function ExperimentsDataListScreen() {
       sub.unsubscribe();
       studentSubRef.current = null;
     };
-  }, [isTeacher, activeTeamId, filter]);
+  }, [teamMode, activeTeamId, filter]);
 
   const addSample = () => {
     if (!activeTeamId) {
       Alert.alert('Team', 'Select a team on the dashboard first.');
       return;
     }
-    const activity: ActivityType =
-      filter !== 'all' ? (filter as ActivityType) : 'parachute';
+    const activity: ActivityType = filter !== 'all' ? (filter as ActivityType) : 'parachute';
     void createTeacherExperiment({
       activityType: activity,
       score: 0,
@@ -145,12 +147,14 @@ export default function ExperimentsDataListScreen() {
     <ScreenShell>
       <PageTitle
         title="Experiments Data"
-        eyebrow={isTeacher ? 'Team library' : 'Your experiments'}
+        eyebrow={teamMode ? 'Team library' : 'Your experiments'}
       />
       <Text style={styles.sub}>
-        {isTeacher
-          ? 'Browse saved experiment results for your team. Tap a row to view details or export.'
-          : 'Your saved experiment results sync to the cloud when online. Tap to view or share.'}
+        {teamMode
+          ? 'Student submissions and records for your active team. Long-press to delete.'
+          : isTeacher
+            ? 'Your personal practice runs (same as student quick join). Tap to view or export.'
+            : 'Your saved experiment results sync to the cloud when online. Tap to view or share.'}
       </Text>
 
       <View style={styles.chips}>
@@ -165,7 +169,7 @@ export default function ExperimentsDataListScreen() {
         ))}
       </View>
 
-      {isTeacher ? (
+      {teamMode ? (
         <Button
           title="Add experiment record"
           variant="secondary"
@@ -177,7 +181,7 @@ export default function ExperimentsDataListScreen() {
       <Card bordered style={styles.card}>
         {filteredRows.length === 0 ? (
           <Text style={styles.empty}>
-            {isTeacher
+            {teamMode
               ? 'No team experiments yet. Students submit from activities, or add a record above.'
               : 'No saved experiments yet. Complete an activity to see data here.'}
           </Text>
@@ -186,14 +190,19 @@ export default function ExperimentsDataListScreen() {
             <Pressable
               key={row.id}
               style={styles.row}
-              onPress={() => router.push(`/experiments-data/${row.sessionId}`)}
-              onLongPress={isTeacher ? () => confirmDelete(row) : undefined}
+              onPress={() =>
+                router.push({
+                  pathname: `/experiments-data/${row.sessionId}`,
+                  params: teamMode ? { scope: 'team' } : { scope: 'personal' },
+                })
+              }
+              onLongPress={teamMode ? () => confirmDelete(row) : undefined}
             >
               <Text style={styles.rowTitle}>
                 {activityDisplayName(row.activityType)} · {row.scoreLabel ?? row.score}
               </Text>
               <Text style={styles.rowMeta}>
-                {isTeacher && row.studentFirstName ? `${row.studentFirstName} · ` : ''}
+                {teamMode && row.studentFirstName ? `${row.studentFirstName} · ` : ''}
                 {row.teamName} ·{' '}
                 {row.submittedAt ? new Date(row.submittedAt).toLocaleString() : '—'}
               </Text>

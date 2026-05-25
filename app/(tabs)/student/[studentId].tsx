@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text } from 'react-native';
 import { Button } from '../../../components/Button';
 import { Card } from '../../../components/Card';
 import { PageTitle } from '../../../components/PageTitle';
@@ -66,12 +66,24 @@ export default function StudentDetailScreen() {
         {scores.length === 0 ? (
           <Text style={styles.empty}>No results yet.</Text>
         ) : (
-          scores.map((s) => (
-            <View key={s.id} style={styles.row}>
-              <Text style={styles.activity}>{s.activityType}</Text>
-              <Text style={styles.score}>{s.score}</Text>
-            </View>
-          ))
+          scores.map((s) => {
+            const detailId = s.sessionId ?? s.id;
+            return (
+              <Pressable
+                key={s.id}
+                style={styles.row}
+                onPress={() =>
+                  router.push({
+                    pathname: `/experiments-data/${detailId}`,
+                    params: { scope: 'team' },
+                  })
+                }
+              >
+                <Text style={styles.activity}>{s.activityType}</Text>
+                <Text style={styles.score}>{s.scoreLabel ?? s.score}</Text>
+              </Pressable>
+            );
+          })
         )}
       </Card>
       <Button title="Back to roster" variant="secondary" onPress={() => router.back()} />

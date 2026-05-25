@@ -1,25 +1,14 @@
 import { collection, onSnapshot, type Unsubscribe } from 'firebase/firestore';
-import { formatLeaderboardDisplay } from '../lib/leaderboard/formatLeaderRow';
 import { mergeLeaderRows } from '../lib/leaderboard/mergeRows';
 import { prepareLeaderboardRows } from '../lib/leaderboard/rankRows';
+import { experimentRecordToLeaderRow } from '../lib/scores/toLeaderRow';
+import { payloadFromUnknown, studentFirstNameFromPayload } from '../lib/scores/stored';
 import type { LeaderboardFilter, LeaderRow } from './firestore';
+import { experimentRecordFromStored, subscribeTeamExperiments } from './experimentsData';
 import { getAllOutbox, resultsDao, studentsDao } from './db/sqlite';
 import { getFirestoreDb } from './firebase';
 
 export type { LeaderboardFilter, LeaderRow } from './firestore';
-
-function payloadFromUnknown(raw: unknown): Record<string, unknown> {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    return raw as Record<string, unknown>;
-  }
-  return {};
-}
-
-function studentFirstNameFromPayload(payload: Record<string, unknown>): string | undefined {
-  if (payload.studentFirstName != null) return String(payload.studentFirstName).trim() || undefined;
-  if (payload.memberName != null) return String(payload.memberName).trim() || undefined;
-  return undefined;
-}
 
 export function leaderRowFromStored(
   id: string,
@@ -27,25 +16,9 @@ export function leaderRowFromStored(
   score: number,
   payload: Record<string, unknown>,
 ): LeaderRow {
-  const teamName = String(payload.teamName ?? 'Demo Team');
-  const submittedAt = Number(payload.submittedAt ?? payload.updatedAt ?? 0);
-  const display = formatLeaderboardDisplay(activityType, score, payload);
-  const studentFirstName = studentFirstNameFromPayload(payload);
-  return {
-    id,
-    teamName,
-    score,
-    activityType,
-    submittedAt,
-    scoreLabel: display.scoreText,
-    detail: display.detail,
-    studentId: payload.studentId != null ? String(payload.studentId) : undefined,
-    studentFirstName,
-    lat: payload.lat != null ? Number(payload.lat) : undefined,
-    lng: payload.lng != null ? Number(payload.lng) : undefined,
-    peakDb: payload.peakDb != null ? Number(payload.peakDb) : undefined,
-    avgDb: payload.avgDb != null ? Number(payload.avgDb) : undefined,
-  };
+  return experimentRecordToLeaderRow(
+    experimentRecordFromStored(id, activityType, score, payload, true),
+  );
 }
 
 export async function loadLocalLeaderRows(): Promise<LeaderRow[]> {
@@ -153,4 +126,17 @@ export function subscribeLeaderboard(
     },
     refresh: refreshLocal,
   };
+}
+
+/** Team leaderboard: same merged local+cloud data as Experiments Data, ranked for Board tab. */
+export function subscribeTeamLeaderboard(
+  teamId: string,
+  activityType: LeaderboardFilter,
+  onRows: (rows: LeaderRow[]) => void,
+): () => void {
+  const sub = subscribeTeamExperiments(teamId, activityType, (records) => {
+    const leaders = records.map(experimentRecordToLeaderRow);
+    onRows(prepareLeaderboardRows(leaders, activityType));
+  });
+  return () => sub.unsubscribe();
 }

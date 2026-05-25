@@ -7,9 +7,9 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import type { LeaderboardFilter, LeaderRow } from './firestore';
+import { payloadFromUnknown } from '../lib/scores/stored';
 import { getFirestoreDb } from './firebase';
-import { leaderRowFromStored } from './leaderboard';
-import { prepareLeaderboardRows } from '../lib/leaderboard/rankRows';
+import { leaderRowFromStored, subscribeTeamLeaderboard } from './leaderboard';
 
 export type TeamSummary = {
   id: string;
@@ -89,36 +89,13 @@ export function subscribeTeamStudents(
   );
 }
 
+/** @deprecated Name kept for callers — uses experimentsData merge + leaderboard ranking. */
 export function subscribeTeamScores(
   teamId: string,
   activityType: LeaderboardFilter,
   onRows: (rows: StudentScoreRow[]) => void,
 ): Unsubscribe {
-  const db = getFirestoreDb();
-  if (!db) {
-    onRows([]);
-    return () => {};
-  }
-  const q = query(collection(db, 'scores'), where('teamId', '==', teamId));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const rows = snap.docs.map((d) => {
-        const x = d.data() as Record<string, unknown>;
-        const activityType = String(x.activityType ?? '');
-        const score = Number(x.score ?? 0);
-        const row = leaderRowFromStored(d.id, activityType, score, x);
-        return {
-          ...row,
-          sessionId: x.sessionId != null ? String(x.sessionId) : undefined,
-          updatedAt: x.updatedAt != null ? Number(x.updatedAt) : undefined,
-          address: x.address != null ? String(x.address) : undefined,
-        };
-      });
-      onRows(prepareLeaderboardRows(rows, activityType));
-    },
-    () => onRows([]),
-  );
+  return subscribeTeamLeaderboard(teamId, activityType, onRows);
 }
 
 export async function getStudentScoreHistory(studentId: string): Promise<StudentScoreRow[]> {
@@ -128,15 +105,15 @@ export async function getStudentScoreHistory(studentId: string): Promise<Student
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => {
-      const x = d.data() as Record<string, unknown>;
+      const x = payloadFromUnknown(d.data());
+      const activityType = String(x.activityType ?? '');
+      const score = Number(x.score ?? 0);
+      const row = leaderRowFromStored(d.id, activityType, score, x);
       return {
-        id: d.id,
-        teamName: String(x.teamName ?? ''),
-        score: Number(x.score ?? 0),
-        activityType: String(x.activityType ?? ''),
+        ...row,
         studentId,
-        sessionId: x.sessionId != null ? String(x.sessionId) : undefined,
-        updatedAt: x.updatedAt != null ? Number(x.updatedAt) : undefined,
+        sessionId: x.sessionId != null ? String(x.sessionId) : d.id,
+        updatedAt: row.submittedAt,
       };
     })
     .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));

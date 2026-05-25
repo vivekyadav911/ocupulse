@@ -13,13 +13,22 @@ import {
   updateExperimentRecord,
   type ExperimentRecord,
 } from '../../services/experimentsData';
+import {
+  experimentsScopeFromParam,
+  teacherCanManageExperimentRecord,
+} from '../../lib/experiments/scope';
 import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function ExperimentDetailScreen() {
-  const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
+  const { sessionId, scope: scopeParam } = useLocalSearchParams<{
+    sessionId: string;
+    scope?: string;
+  }>();
   const router = useRouter();
-  const isTeacher = useSessionStore((s) => s.role) === 'teacher';
+  const role = useSessionStore((s) => s.role);
+  const activeTeamId = useSessionStore((s) => s.activeTeamId);
+  const teamMode = role === 'teacher' && experimentsScopeFromParam(scopeParam) === 'team';
   const [record, setRecord] = useState<ExperimentRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,7 +66,13 @@ export default function ExperimentDetailScreen() {
             <Text style={styles.id}>Session: {record.sessionId}</Text>
             {!record.synced ? <Text style={styles.id}>Status: pending cloud sync</Text> : null}
             <ExperimentExportActions record={record} />
-            {isTeacher ? (
+            {record &&
+            teamMode &&
+            teacherCanManageExperimentRecord(
+              record.payload,
+              record.payload.teamId != null ? String(record.payload.teamId) : null,
+              activeTeamId,
+            ) ? (
               <>
                 <Button
                   title="Edit score (+1)"

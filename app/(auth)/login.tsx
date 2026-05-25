@@ -8,10 +8,7 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
 import { formatAuthError } from '../../lib/authErrors';
-import {
-  inferEffectiveRole,
-  isIncompleteStudentProfile,
-} from '../../lib/profileRole';
+import { inferEffectiveRole, isIncompleteStudentProfile } from '../../lib/profileRole';
 import {
   convertIncompleteStudentToTeacher,
   getUserProfile,
@@ -37,7 +34,6 @@ export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string; role?: string }>();
   const insets = useSafeAreaInsets();
-  const setRole = useSessionStore((s) => s.setRole);
   const sessionRole = useSessionStore((s) => s.role);
   const profileReady = useSessionStore((s) => s.profileReady);
   const user = useAuthStore((s) => s.user);
@@ -123,7 +119,6 @@ export default function LoginScreen() {
       displayName: name?.trim(),
       studentFirstName: profileRole === 'student' ? name?.trim() : undefined,
     });
-    setRole(profileRole);
     useAuthStore.getState().setProfileHydrated(true);
     router.replace(
       ready

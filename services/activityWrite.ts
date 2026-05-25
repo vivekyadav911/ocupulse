@@ -9,16 +9,19 @@ export async function saveActivityResult(input: {
   mediaLocalUri?: string | null;
   mediaMimeType?: string;
 }): Promise<string> {
-  const { teamName, teamId, studentId, studentFirstName } = useSessionStore.getState();
+  const session = useSessionStore.getState();
+  const personalPractice = session.role === 'teacher';
+  const practiceName = session.displayName?.trim() || 'Teacher';
 
   const sessionId = await writeSessionOptimistic({
     activityType: input.activityType,
-    teamName,
-    teamId,
-    studentId,
-    studentFirstName,
+    teamName: personalPractice ? `${practiceName} (practice)` : session.teamName,
+    teamId: personalPractice ? null : session.teamId,
+    studentId: personalPractice ? null : session.studentId,
+    studentFirstName: personalPractice ? practiceName : session.studentFirstName,
     score: input.score,
-    payload: input.payload,
+    payload: { ...input.payload, ...(personalPractice ? { personalPractice: true } : {}) },
+    personalPractice,
   });
 
   if (input.mediaLocalUri) {

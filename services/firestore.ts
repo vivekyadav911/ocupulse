@@ -96,7 +96,10 @@ export async function syncOutbox(): Promise<void> {
     try {
       const payload = JSON.parse(r.payload) as Record<string, unknown>;
       if (isScoreOrSession && uid) {
-        if (profile?.role === 'teacher') {
+        const personal =
+          payload.personalPractice === true ||
+          (payload.teamId == null && profile?.role === 'teacher');
+        if (profile?.role === 'teacher' && !personal) {
           if (r.path.startsWith('scores/')) payload.teacherId = uid;
           if (r.path.startsWith('sessions/')) {
             payload.createdBy = uid;
@@ -159,18 +162,21 @@ export async function writeSessionOptimistic(input: {
   score: number;
   payload: Record<string, unknown>;
   mediaUrls?: string[];
+  /** Teacher running an activity for themselves — not attached to a managed team. */
+  personalPractice?: boolean;
 }): Promise<string> {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const user = getCurrentUser();
   const userId = input.userId ?? user?.uid ?? null;
   const submittedAt = Date.now();
   const session = useSessionStore.getState();
+  const personalPractice = input.personalPractice === true;
   const teamName = input.teamName.trim() || session.teamName.trim() || 'Demo Team';
-  const teamId = input.teamId ?? session.teamId ?? null;
-  const studentId = input.studentId ?? session.studentId ?? null;
+  const teamId = personalPractice ? null : (input.teamId ?? session.teamId ?? null);
+  const studentId = personalPractice ? null : (input.studentId ?? session.studentId ?? null);
   const studentFirstName =
     (input.studentFirstName ?? session.studentFirstName ?? '').trim() || undefined;
-  const teacherId = await getTeamTeacherId(teamId);
+  const teacherId = personalPractice ? null : await getTeamTeacherId(teamId);
 
   await sessionsDao.insert({
     id,
@@ -209,10 +215,10 @@ export async function writeSessionOptimistic(input: {
     teamId,
     studentId,
     userId,
-    teacherId,
     sessionId: id,
     mediaUrls: input.mediaUrls ?? [],
     updatedAt: submittedAt,
+    ...(personalPractice ? { personalPractice: true } : { teacherId }),
     ...(studentFirstName ? { studentFirstName } : {}),
   };
 
@@ -220,10 +226,11 @@ export async function writeSessionOptimistic(input: {
   await insertOutbox(`sessions/${id}`, {
     teamId,
     studentId,
-    teacherId,
+    ...(personalPractice
+      ? { personalPractice: true, createdBy: userId }
+      : { teacherId, createdBy: userId }),
     activityType: input.activityType,
     startTime: submittedAt,
-    createdBy: userId,
     updatedAt: submittedAt,
   });
 

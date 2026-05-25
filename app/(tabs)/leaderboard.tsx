@@ -10,9 +10,8 @@ import {
 } from '../../lib/leaderboard/formatLeaderRow';
 import { ACTIVITY_LABELS, activityDisplayName } from '../../lib/activities/labels';
 import type { LeaderboardFilter, LeaderRow } from '../../services/leaderboard';
-import { subscribeLeaderboard } from '../../services/leaderboard';
+import { subscribeLeaderboard, subscribeTeamLeaderboard } from '../../services/leaderboard';
 import { syncOutbox } from '../../services/firestore';
-import { subscribeTeamScores } from '../../services/teacher';
 import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
@@ -99,7 +98,7 @@ export default function LeaderboardScreen() {
     };
 
     if (isTeacher && activeTeamId) {
-      const unsub = subscribeTeamScores(activeTeamId, filter, applyRows);
+      const unsub = subscribeTeamLeaderboard(activeTeamId, filter, applyRows);
       return () => {
         unsub();
         ranks.clear();

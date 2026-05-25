@@ -6,16 +6,14 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
 import { TeamIdPreview } from '../../components/TeamIdPreview';
+import { applySessionFromProfile } from '../../lib/applySessionFromProfile';
 import { setupStudentProfile } from '../../services/profiles';
 import { syncAll } from '../../services/sync';
 import { useAuthStore } from '../../store/authStore';
-import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function StudentSetupScreen() {
   const router = useRouter();
-  const setTeam = useSessionStore((s) => s.setTeam);
-  const setRole = useSessionStore((s) => s.setRole);
   const [firstName, setFirstName] = useState('');
   const [teamName, setTeamName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -58,8 +56,7 @@ export default function StudentSetupScreen() {
         firstName: firstName.trim(),
         teamName: teamName.trim(),
       });
-      setRole('student');
-      setTeam({
+      applySessionFromProfile({
         role: 'student',
         profileReady: true,
         teamId: team.id,
@@ -67,7 +64,6 @@ export default function StudentSetupScreen() {
         teamName: team.name,
         displayName: student.firstName,
         studentFirstName: student.firstName,
-        managedTeamIds: [],
         activeTeamId: team.id,
       });
       useAuthStore.getState().setProfileHydrated(true);

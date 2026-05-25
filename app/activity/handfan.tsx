@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { ActivityCard } from '../../components/ActivityCard';
 import { AppHeader } from '../../components/AppHeader';
 import { Button } from '../../components/Button';
@@ -54,15 +54,13 @@ export default function HandFanScreen() {
       flex: 1,
       backgroundColor: t.colors.surfaceAlt,
     },
-    fixedZone: {
-      paddingHorizontal: t.spacing.md,
-    },
     scroll: {
       flex: 1,
     },
     scrollContent: {
       paddingHorizontal: t.spacing.md,
       paddingBottom: t.spacing.xl,
+      flexGrow: 1,
     },
     addr: { color: t.colors.muted, marginBottom: t.spacing.md },
     reflectionTitle: {
@@ -229,118 +227,126 @@ export default function HandFanScreen() {
   return (
     <View style={styles.screen}>
       <AppHeader />
-      <View style={styles.fixedZone}>
-        <PageTitle eyebrow="Active session" title="Experiment" />
-        <ActivityCard title="Hand Fan Challenge" live>
-          <Text style={styles.p}>
-            Point the camera at the paper standing upright. Drag the overlay line to match the bend,
-            then record the angle for each design and distance combination.
-          </Text>
-
-          <HandFanTrialSelectors
-            material={state.material}
-            design={state.activeDesign}
-            distanceCm={state.activeDistanceCm}
-            predictedAngleDeg={activeTrial.predictedAngleDeg}
-            onMaterialChange={setMaterial}
-            onDesignChange={setDesign}
-            onDistanceChange={setDistance}
-            onPredictedChange={setPredicted}
-          />
-
-          <HandFanCameraSection>
-            <HandFanAngleOverlay
-              angleDeg={liveAngleDeg}
-              onAngleChange={setLiveAngleDeg}
-              onDragStateChange={setAngleDragging}
-            />
-          </HandFanCameraSection>
-
-          <View style={styles.actions}>
-            <Button title="Record angle" onPress={recordAngle} />
-          </View>
-        </ActivityCard>
-      </View>
-
-      <ScrollView
+      <KeyboardAvoidingView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        scrollEnabled={!angleDragging}
-        keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled
-        showsVerticalScrollIndicator={!angleDragging}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
-        <ActivityCard title="Results & reflection">
-          <HandFanProgressGrid
-            trials={state.trials}
-            activeDesign={state.activeDesign}
-            activeDistanceCm={state.activeDistanceCm}
-            onSelect={selectTrial}
-          />
-
-          <HandFanResultsTable trials={state.trials} onNotesChange={setNotes} />
-
-          <HandFanForceCalculator
-            stiffnessK={state.forceCalc.stiffnessK}
-            stiffnessLabel={state.forceCalc.stiffnessLabel}
-            angleDeg={state.forceCalc.angleDeg}
-            onStiffnessChange={(k, label) => setForceCalc({ stiffnessK: k, stiffnessLabel: label })}
-            onAngleChange={(angleDeg) => setForceCalc({ angleDeg })}
-          />
-
-          <HandFanBendChart trials={state.trials} />
-
-          <Text style={styles.reflectionTitle}>Reflection</Text>
-          <FormField
-            label="How does material stiffness affect bend angle?"
-            value={state.reflection.stiffnessEffect}
-            onChangeText={(stiffnessEffect) => setReflection({ stiffnessEffect })}
-            multiline
-            style={styles.multiline}
-          />
-          <FormField
-            label="How does fan design influence air velocity and paper movement?"
-            value={state.reflection.designInfluence}
-            onChangeText={(designInfluence) => setReflection({ designInfluence })}
-            multiline
-            style={styles.multiline}
-          />
-          <FormField
-            label="How does distance from the fan affect bending?"
-            value={state.reflection.distanceEffect}
-            onChangeText={(distanceEffect) => setReflection({ distanceEffect })}
-            multiline
-            style={styles.multiline}
-          />
-
-          <Text style={styles.addr}>
-            {locating
-              ? 'Locating…'
-              : suburb
-                ? `${suburb} · ${address || '—'}`
-                : address || 'Location captured at upload'}
-          </Text>
-
-          <View style={styles.actions}>
-            <Button
-              title={uploading ? 'Uploading…' : 'Upload results'}
-              variant="secondary"
-              onPress={() => void uploadResults()}
-              disabled={uploading || !trialsComplete}
-            />
-            <Button title="Home" variant="secondary" onPress={() => router.back()} />
-          </View>
-
-          {state.uploadStatus === 'success' ? (
-            <Text style={[styles.uploadStatus, styles.uploadSuccess]}>
-              Upload successful — results saved locally too.
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          scrollEnabled={!angleDragging}
+          keyboardShouldPersistTaps="never"
+          keyboardDismissMode="on-drag"
+          onScrollBeginDrag={Keyboard.dismiss}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={!angleDragging}
+        >
+          <PageTitle eyebrow="Active session" title="Experiment" />
+          <ActivityCard title="Hand Fan Challenge" live>
+            <Text style={styles.p}>
+              Point the camera at the paper standing upright. Drag the overlay line to match the
+              bend, then record the angle for each design and distance combination.
             </Text>
-          ) : null}
-          {state.uploadStatus === 'error' && state.uploadError ? (
-            <Text style={[styles.uploadStatus, styles.uploadError]}>{state.uploadError}</Text>
-          ) : null}
-        </ActivityCard>
-      </ScrollView>
+
+            <HandFanTrialSelectors
+              material={state.material}
+              design={state.activeDesign}
+              distanceCm={state.activeDistanceCm}
+              predictedAngleDeg={activeTrial.predictedAngleDeg}
+              onMaterialChange={setMaterial}
+              onDesignChange={setDesign}
+              onDistanceChange={setDistance}
+              onPredictedChange={setPredicted}
+            />
+
+            <HandFanCameraSection>
+              <HandFanAngleOverlay
+                angleDeg={liveAngleDeg}
+                onAngleChange={setLiveAngleDeg}
+                onDragStateChange={setAngleDragging}
+              />
+            </HandFanCameraSection>
+
+            <View style={styles.actions}>
+              <Button title="Record angle" onPress={recordAngle} />
+            </View>
+          </ActivityCard>
+
+          <ActivityCard title="Results & reflection">
+            <HandFanProgressGrid
+              trials={state.trials}
+              activeDesign={state.activeDesign}
+              activeDistanceCm={state.activeDistanceCm}
+              onSelect={selectTrial}
+            />
+
+            <HandFanResultsTable trials={state.trials} onNotesChange={setNotes} />
+
+            <HandFanForceCalculator
+              stiffnessK={state.forceCalc.stiffnessK}
+              stiffnessLabel={state.forceCalc.stiffnessLabel}
+              angleDeg={state.forceCalc.angleDeg}
+              onStiffnessChange={(k, label) =>
+                setForceCalc({ stiffnessK: k, stiffnessLabel: label })
+              }
+              onAngleChange={(angleDeg) => setForceCalc({ angleDeg })}
+            />
+
+            <HandFanBendChart trials={state.trials} />
+
+            <Text style={styles.reflectionTitle}>Reflection</Text>
+            <FormField
+              label="How does material stiffness affect bend angle?"
+              value={state.reflection.stiffnessEffect}
+              onChangeText={(stiffnessEffect) => setReflection({ stiffnessEffect })}
+              multiline
+              style={styles.multiline}
+            />
+            <FormField
+              label="How does fan design influence air velocity and paper movement?"
+              value={state.reflection.designInfluence}
+              onChangeText={(designInfluence) => setReflection({ designInfluence })}
+              multiline
+              style={styles.multiline}
+            />
+            <FormField
+              label="How does distance from the fan affect bending?"
+              value={state.reflection.distanceEffect}
+              onChangeText={(distanceEffect) => setReflection({ distanceEffect })}
+              multiline
+              style={styles.multiline}
+            />
+
+            <Text style={styles.addr}>
+              {locating
+                ? 'Locating…'
+                : suburb
+                  ? `${suburb} · ${address || '—'}`
+                  : address || 'Location captured at upload'}
+            </Text>
+
+            <View style={styles.actions}>
+              <Button
+                title={uploading ? 'Uploading…' : 'Upload results'}
+                variant="secondary"
+                onPress={() => void uploadResults()}
+                disabled={uploading || !trialsComplete}
+              />
+              <Button title="Home" variant="secondary" onPress={() => router.back()} />
+            </View>
+
+            {state.uploadStatus === 'success' ? (
+              <Text style={[styles.uploadStatus, styles.uploadSuccess]}>
+                Upload successful — results saved locally too.
+              </Text>
+            ) : null}
+            {state.uploadStatus === 'error' && state.uploadError ? (
+              <Text style={[styles.uploadStatus, styles.uploadError]}>{state.uploadError}</Text>
+            ) : null}
+          </ActivityCard>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

@@ -110,9 +110,17 @@ function TeacherHome() {
       marginBottom: t.spacing.sm,
     },
     teamChipOn: { borderColor: t.colors.accent, backgroundColor: `${t.colors.accent}18` },
-    teamChipText: { color: t.colors.text, fontWeight: '600' as const, fontSize: t.typography.caption },
+    teamChipText: {
+      color: t.colors.text,
+      fontWeight: '600' as const,
+      fontSize: t.typography.caption,
+    },
     teamChipTextOn: { color: t.colors.accent, fontWeight: '800' as const },
-    chipRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, marginBottom: t.spacing.md },
+    chipRow: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      marginBottom: t.spacing.md,
+    },
     input: {
       borderWidth: 1,
       borderColor: t.colors.border,
@@ -177,31 +185,42 @@ function TeacherHome() {
     <ScreenShell>
       <PageTitle title="Teacher dashboard" />
       <TeamSubtitle team={teamName} />
-      {activeTeamId ? (
-        <Text style={styles.teamId}>Team ID: {activeTeamId}</Text>
-      ) : null}
+      {activeTeamId ? <Text style={styles.teamId}>Team ID: {activeTeamId}</Text> : null}
 
       <Card bordered style={styles.card}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Activities</Text>
-          <Badge label={`${ACTIVITY_CATALOG.length} Experiments`} />
+          <Text style={styles.sectionTitle}>Run experiments</Text>
+          <Badge label={`${ACTIVITY_CATALOG.length} activities`} />
         </View>
         <Text style={styles.sub}>
-          Same experiments students run — open to view your team&apos;s saved results for each
-          activity.
+          Try any STEMM Lab activity yourself — same as student quick join. Results save to your
+          personal practice library (not team roster scores).
         </Text>
         {ACTIVITY_CATALOG.map((a) => (
-          <ActivityRow
-            key={a.path}
-            title={a.title}
-            onPress={() =>
-              router.push({
-                pathname: '/experiments-data',
-                params: { activity: a.key },
-              })
-            }
-          />
+          <ActivityRow key={a.path} title={a.title} onPress={() => router.push(a.path)} />
         ))}
+        <Button
+          title="My experiment results"
+          variant="accent"
+          icon="folder-open-outline"
+          onPress={() =>
+            router.push({ pathname: '/experiments-data', params: { scope: 'personal' } })
+          }
+        />
+      </Card>
+
+      <Card bordered style={styles.card}>
+        <Text style={styles.sectionTitle}>Team management</Text>
+        <Text style={styles.sub}>
+          Create teams, approve join requests, and review student experiment data. Student sign-up
+          still requires your approval when they use your team name.
+        </Text>
+        <Button
+          title="Team experiment library"
+          variant="secondary"
+          icon="people-outline"
+          onPress={() => router.push({ pathname: '/experiments-data', params: { scope: 'team' } })}
+        />
       </Card>
 
       <Card bordered style={styles.card}>
@@ -211,16 +230,9 @@ function TeacherHome() {
             <Pressable
               key={t.id}
               style={[styles.teamChip, activeTeamId === t.id && styles.teamChipOn]}
-              onPress={() =>
-                setTeam({ activeTeamId: t.id, teamId: t.id, teamName: t.name })
-              }
+              onPress={() => setTeam({ activeTeamId: t.id, teamId: t.id, teamName: t.name })}
             >
-              <Text
-                style={[
-                  styles.teamChipText,
-                  activeTeamId === t.id && styles.teamChipTextOn,
-                ]}
-              >
+              <Text style={[styles.teamChipText, activeTeamId === t.id && styles.teamChipTextOn]}>
                 {t.name}
               </Text>
             </Pressable>
@@ -312,13 +324,6 @@ function TeacherHome() {
           </>
         )}
       </Card>
-
-      <Button
-        title="Experiments Data"
-        variant="accent"
-        icon="folder-open-outline"
-        onPress={() => router.push('/experiments-data')}
-      />
     </ScreenShell>
   );
 }

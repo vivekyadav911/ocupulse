@@ -6,16 +6,14 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
 import { TeamIdPreview } from '../../components/TeamIdPreview';
+import { applySessionFromProfile } from '../../lib/applySessionFromProfile';
 import { createTeacherTeam } from '../../services/profiles';
 import { syncAll } from '../../services/sync';
 import { useAuthStore } from '../../store/authStore';
-import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function TeacherSetupScreen() {
   const router = useRouter();
-  const setTeam = useSessionStore((s) => s.setTeam);
-  const setRole = useSessionStore((s) => s.setRole);
   const [displayName, setDisplayName] = useState('');
   const [teamName, setTeamName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -50,13 +48,10 @@ export default function TeacherSetupScreen() {
         teamName: teamName.trim(),
       });
       const name = displayName.trim();
-      setRole('teacher');
-      setTeam({
+      applySessionFromProfile({
         role: 'teacher',
         profileReady: true,
         displayName: name,
-        studentFirstName: '',
-        studentId: null,
         teamName: team.name,
         teamId: team.id,
         managedTeamIds: [team.id],
