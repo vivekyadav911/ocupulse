@@ -1,17 +1,24 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { deleteOutboxForPath } from '../../services/db/sqlite';
+import { syncAll } from '../../services/sync';
 import { ActivityRow } from '../../components/ActivityRow';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { PageTitle, TeamSubtitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
+import { HomeQuickTools } from '../../components/HomeQuickTools';
 import { StemmBannerAd } from '../../components/StemmBannerAd';
 import { ACTIVITY_CATALOG } from '../../lib/activities/catalog';
 import { canStudentRunExperiments } from '../../lib/studentAccess';
 import { PendingApprovalBanner } from '../../components/PendingApprovalBanner';
-import { subscribeStudentMemberStatus } from '../../services/profiles';
+import {
+  backfillTeacherTeamNameLower,
+  fetchStudentMemberStatus,
+  subscribeStudentMemberStatus,
+} from '../../services/profiles';
 import {
   approveTeamStudent,
   createManagedTeam,
@@ -31,6 +38,21 @@ import {
 import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
+function usePullRefresh(refreshWork: () => Promise<void>) {
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshWork();
+    } catch (e) {
+      console.warn('[Ocupulse] home refresh failed', e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshWork]);
+  return { refreshing, onRefresh };
+}
+
 function StudentHome() {
   const router = useRouter();
   const team = useSessionStore((s) => s.teamName);
@@ -42,10 +64,33 @@ function StudentHome() {
 
   useEffect(() => {
     if (!teamId || !studentId) return;
+    const rosterPath = `teams/${teamId}/students/${studentId}`;
     return subscribeStudentMemberStatus(teamId, studentId, (status) => {
       setTeam({ teamMemberStatus: status });
+      if (status === 'active') {
+        void deleteOutboxForPath(rosterPath);
+      }
     });
   }, [teamId, studentId, setTeam]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!teamId || !studentId) return;
+      void fetchStudentMemberStatus(teamId, studentId).then((status) => {
+        setTeam({ teamMemberStatus: status });
+      });
+    }, [teamId, studentId, setTeam]),
+  );
+
+  const refreshWork = useCallback(async () => {
+    await syncAll();
+    if (teamId && studentId) {
+      const status = await fetchStudentMemberStatus(teamId, studentId);
+      setTeam({ teamMemberStatus: status });
+    }
+  }, [teamId, studentId, setTeam]);
+
+  const { refreshing, onRefresh } = usePullRefresh(refreshWork);
 
   const styles = useThemedStyles((t) => ({
     sectionHeader: {
@@ -63,10 +108,11 @@ function StudentHome() {
   }));
 
   return (
-    <ScreenShell>
+    <ScreenShell refreshing={refreshing} onRefresh={onRefresh} compactHeader>
       <PageTitle title="Dashboard" />
       <TeamSubtitle team={team} />
       <StemmBannerAd />
+      <HomeQuickTools />
       {!canRun ? <PendingApprovalBanner /> : null}
       <Card bordered style={styles.card}>
         <View style={styles.sectionHeader}>
@@ -186,8 +232,18 @@ function TeacherHome() {
 
   useEffect(() => {
     if (!user?.uid) return;
+    void backfillTeacherTeamNameLower(user.uid);
     return subscribeTeacherTeams(user.uid, setTeams);
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (teams.length === 0) return;
+    const match = activeTeamId ? teams.find((t) => t.id === activeTeamId) : undefined;
+    if (!match) {
+      const pick = teams[0]!;
+      setTeam({ activeTeamId: pick.id, teamId: pick.id, teamName: pick.name });
+    }
+  }, [teams, activeTeamId, setTeam]);
 
   useEffect(() => {
     if (!activeTeamId) return;
@@ -202,7 +258,8 @@ function TeacherHome() {
   useFocusEffect(
     useCallback(() => {
       void ensureNotificationPermissions();
-    }, []),
+      if (user?.uid) void backfillTeacherTeamNameLower(user.uid);
+    }, [user?.uid]),
   );
 
   const sortedStudents = useMemo(
@@ -232,6 +289,13 @@ function TeacherHome() {
     void notifyStudentJoinRequest(names, teamName);
   }, [pending, activeTeamId, teamName]);
 
+  const refreshWork = useCallback(async () => {
+    await syncAll();
+    if (user?.uid) await backfillTeacherTeamNameLower(user.uid);
+  }, [user?.uid]);
+
+  const { refreshing, onRefresh } = usePullRefresh(refreshWork);
+
   const addTeam = async () => {
     if (!newTeamName.trim()) {
       Alert.alert('Team', 'Enter a team name.');
@@ -256,10 +320,16 @@ function TeacherHome() {
   };
 
   return (
-    <ScreenShell>
+    <ScreenShell refreshing={refreshing} onRefresh={onRefresh} compactHeader>
       <PageTitle title="Teacher dashboard" />
       <TeamSubtitle team={teamName} />
-      {activeTeamId ? <Text style={styles.teamId}>Team ID: {activeTeamId}</Text> : null}
+      <HomeQuickTools />
+      {activeTeamId ? (
+        <Text style={styles.teamId}>
+          Watching team: {teamName} · ID {activeTeamId}
+          {'\n'}Students must type team name &quot;{teamName}&quot; (any capitalization).
+        </Text>
+      ) : null}
 
       <Card bordered style={styles.card}>
         <Text style={styles.sectionTitle}>Your teams</Text>

@@ -6,7 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from './BackButton';
 import { useAppTheme } from '../theme/useAppTheme';
 
-export function AppHeader() {
+type AppHeaderProps = {
+  /** Tab screens already have a top safe-area battery strip — skip duplicate inset. */
+  compactTop?: boolean;
+};
+
+export function AppHeader({ compactTop = false }: AppHeaderProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, spacing, typography } = useAppTheme();
@@ -51,7 +56,7 @@ export function AppHeader() {
   );
 
   return (
-    <View style={[styles.bar, { paddingTop: insets.top + spacing.xs }]}>
+    <View style={[styles.bar, { paddingTop: compactTop ? spacing.xs : insets.top + spacing.xs }]}>
       <View style={styles.left}>
         <BackButton compact />
       </View>

@@ -8,9 +8,10 @@ import {
   setDoc,
   where,
 } from 'firebase/firestore';
+import { withoutUndefined } from '../lib/firestoreSanitize';
 import type { TeamMemberStatus } from '../store/sessionStore';
 import { getCurrentUser, getUserProfile, updateUserProfile } from './auth';
-import { insertOutbox, studentsDao, teamsDao } from './db/sqlite';
+import { deleteOutboxForPath, insertOutbox, studentsDao, teamsDao } from './db/sqlite';
 import type { Student, Team } from './db/types';
 import { getFirestoreDb } from './firebase';
 
@@ -47,28 +48,96 @@ async function persistTeamDoc(team: Team, created = false): Promise<void> {
   }
 }
 
+function teamFromFirestoreDoc(
+  d: { id: string; data: () => Record<string, unknown> },
+  fallbackName: string,
+): Team {
+  const data = d.data();
+  return {
+    id: d.id,
+    name: String(data.name ?? fallbackName),
+    teacherId: data.teacherId != null ? String(data.teacherId) : null,
+    schoolId: data.schoolId != null ? String(data.schoolId) : null,
+    synced: 1,
+  };
+}
+
+async function cacheTeamLocally(team: Team): Promise<Team> {
+  const existing = await teamsDao.findById(team.id);
+  if (existing) await teamsDao.update(team);
+  else await teamsDao.insert(team);
+  return team;
+}
+
 async function persistStudentRoster(
   teamId: string,
   student: Student,
   status: 'pending' | 'active',
   email: string,
 ): Promise<void> {
-  const payload = {
+  const payload = withoutUndefined({
     firstName: student.firstName,
-    uid: student.uid,
-    email,
+    uid: student.uid ?? null,
+    email: email || null,
     teamId,
     status,
-    createdAt: Date.now(),
-  };
-  await insertOutbox(`teams/${teamId}/students/${student.id}`, payload);
+    updatedAt: Date.now(),
+    ...(status === 'pending' ? { requestedAt: Date.now() } : { approvedAt: Date.now() }),
+  });
+  const rosterDocId = student.uid ?? student.id;
+  await insertOutbox(`teams/${teamId}/students/${rosterDocId}`, payload);
   const db = getFirestoreDb();
-  if (!db) return;
-  try {
-    await setDoc(doc(db, 'teams', teamId, 'students', student.id), payload, { merge: true });
-  } catch (e) {
-    console.warn('[Ocupulse] persistStudentRoster failed', e);
+  if (!db) {
+    throw new Error('Cloud sync is unavailable. Check Firebase in .env and restart Expo with -c.');
   }
+  await setDoc(doc(db, 'teams', teamId, 'students', rosterDocId), payload, { merge: true });
+  const verify = await getDoc(doc(db, 'teams', teamId, 'students', rosterDocId));
+  if (!verify.exists()) {
+    throw new Error('Join request could not be saved. Check your connection and try again.');
+  }
+  // Roster is on Firestore — drop outbox so a later sync cannot overwrite teacher approval with pending.
+  await deleteOutboxForPath(`teams/${teamId}/students/${rosterDocId}`);
+}
+
+/** Prefer Firestore (source of truth); local SQLite is cache only. */
+async function findTeamInFirestore(trimmed: string, nameLower: string): Promise<Team | null> {
+  const db = getFirestoreDb();
+  if (!db) return null;
+
+  const matches: Team[] = [];
+
+  const byLower = await getDocs(
+    query(collection(db, 'teams'), where('nameLower', '==', nameLower)),
+  );
+  for (const d of byLower.docs) {
+    matches.push(teamFromFirestoreDoc(d, trimmed));
+  }
+
+  if (matches.length === 0) {
+    const byExact = await getDocs(query(collection(db, 'teams'), where('name', '==', trimmed)));
+    for (const d of byExact.docs) {
+      matches.push(teamFromFirestoreDoc(d, trimmed));
+    }
+  }
+
+  if (matches.length === 0) {
+    const all = await getDocs(collection(db, 'teams'));
+    for (const d of all.docs) {
+      const data = d.data();
+      const name = String(data.name ?? '');
+      if (normalizeTeamName(name) === nameLower) {
+        matches.push(teamFromFirestoreDoc(d, trimmed));
+      }
+    }
+  }
+
+  if (matches.length === 0) return null;
+
+  const supervised = matches.filter((t) => t.teacherId);
+  const pick = supervised.length > 0 ? supervised[0]! : matches[0]!;
+
+  // Do not write the parent team doc here — Firestore rules allow only the teacher to update teams/{id}.
+  return pick;
 }
 
 export async function findTeamByName(name: string): Promise<Team | null> {
@@ -76,32 +145,30 @@ export async function findTeamByName(name: string): Promise<Team | null> {
   if (!trimmed) return null;
   const nameLower = normalizeTeamName(trimmed);
 
+  const remote = await findTeamInFirestore(trimmed, nameLower);
+  if (remote) return cacheTeamLocally(remote);
+
   const localTeams = await teamsDao.findAll();
   const local = localTeams.find((t) => normalizeTeamName(t.name) === nameLower);
-  if (local) return local;
+  return local ?? null;
+}
 
+/** Ensures teacher teams in Firestore have nameLower for case-insensitive student joins. */
+export async function backfillTeacherTeamNameLower(teacherId: string): Promise<void> {
   const db = getFirestoreDb();
-  if (!db) return null;
-
-  let snap = await getDocs(query(collection(db, 'teams'), where('nameLower', '==', nameLower)));
-  if (snap.empty) {
-    snap = await getDocs(query(collection(db, 'teams'), where('name', '==', trimmed)));
-  }
-  if (snap.empty) return null;
-
-  const d = snap.docs[0]!;
-  const data = d.data();
-  const team: Team = {
-    id: d.id,
-    name: String(data.name ?? trimmed),
-    teacherId: data.teacherId != null ? String(data.teacherId) : null,
-    schoolId: data.schoolId != null ? String(data.schoolId) : null,
-    synced: 1,
-  };
-  const existing = await teamsDao.findById(team.id);
-  if (existing) await teamsDao.update(team);
-  else await teamsDao.insert(team);
-  return team;
+  if (!db || !teacherId) return;
+  const snap = await getDocs(query(collection(db, 'teams'), where('teacherId', '==', teacherId)));
+  await Promise.all(
+    snap.docs.map((d) => {
+      const data = d.data();
+      const teamName = String(data.name ?? '');
+      return setDoc(
+        d.ref,
+        { name: teamName, nameLower: normalizeTeamName(teamName) },
+        { merge: true },
+      );
+    }),
+  );
 }
 
 /** Students join by team name; never set teacherId. */
@@ -171,9 +238,15 @@ export async function setupStudentProfile(input: {
   const user = getCurrentUser();
   if (!user) throw new Error('Not signed in');
 
-  const team = await createOrJoinTeam(input.teamName);
+  const trimmedTeam = input.teamName.trim();
+  const team = await findTeamByName(trimmedTeam);
+  if (!team?.teacherId) {
+    throw new Error(
+      `No teacher team matched "${trimmedTeam}". Ask your teacher for the exact team name on their dashboard.`,
+    );
+  }
   const student: Student = {
-    id: newId(),
+    id: user.uid,
     firstName: input.firstName.trim() || 'Student',
     teamId: team.id,
     uid: user.uid,
@@ -181,8 +254,11 @@ export async function setupStudentProfile(input: {
     synced: 0,
   };
 
-  await studentsDao.insert(student);
-  const joinStatus = team.teacherId ? 'pending' : 'active';
+  const existingLocal = await studentsDao.findById(user.uid);
+  if (existingLocal) await studentsDao.update({ ...existingLocal, ...student, teamId: team.id });
+  else await studentsDao.insert(student);
+
+  const joinStatus: 'pending' | 'active' = team.teacherId ? 'pending' : 'active';
   await persistStudentRoster(team.id, student, joinStatus, user.email ?? '');
 
   await updateUserProfile(user.uid, {

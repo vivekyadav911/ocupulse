@@ -12,6 +12,7 @@ const SPIKES = [
   'maps',
   'sqlite',
   'firestore',
+  'notes',
   'system',
   'components',
 ] as const;

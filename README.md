@@ -30,6 +30,14 @@ Place `google-services.json` and `GoogleService-Info.plist` at the **repo root**
 - `npm run firebase:login` — sign in to Firebase (no global CLI install needed)  
 - `npm run firebase:deploy-firestore` — deploy rules + indexes after login  
 - `npm run android` / `npm run ios`
+- `npm run eas:login` — sign in to Expo (**required once**; opens browser — run this before any EAS build)
+- `npm run eas:whoami` — confirm you are logged in
+- `npm run eas:init` — link the repo to an Expo project (first time; if it errors on `app.config.ts`, the `projectId` is already in that file)
+- `npm run build:android:preview:setup` — **first Android build only** (interactive; Expo creates the signing keystore — answer Yes when asked)
+- `npm run build:android:preview` — queue **preview APK** after setup (`--no-wait`; build runs in the cloud while you work)
+- `npm run build:android:preview:bg` — same as preview, via PowerShell script with log at `build-android-preview.log`
+- `npm run build:android:preview:wait` — stay in the terminal until the APK is ready
+- `npm run eas:credentials:android` — manage Android signing credentials on Expo (optional)
 
 ## Docs
 
@@ -44,7 +52,7 @@ Place `google-services.json` and `GoogleService-Info.plist` at the **repo root**
 
 - [ ] Both students submit on LMS; source zip excludes `.env` and `google-services.json`.
 - [ ] Populate `.env` from `.env.example`; configure Firestore rules before wider trials.
-- [ ] Run `eas build --platform android --profile production` and upload to **Firebase Test Lab** (two devices, one per student).
+- [ ] Run `npm run build:android:preview` (APK) or production profile via `npx eas build --platform android --profile production`; upload to **Firebase Test Lab** (two devices, one per student).
 - [ ] Record pitch videos; expand `docs/user-manual-*.md` and testing reports to ~3 pages each.
 - [ ] Secret scan: `rg "AIza|ca-app-pub-"` must not match tracked source (except documented placeholders).
 

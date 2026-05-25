@@ -1,4 +1,4 @@
-import { doc, setDoc, type DocumentReference } from 'firebase/firestore';
+import { doc, getDoc, setDoc, type DocumentReference } from 'firebase/firestore';
 import { getCurrentUser, getUserProfile } from './auth';
 import { getTeamTeacherId } from './profiles';
 import { useSessionStore } from '../store/sessionStore';
@@ -60,6 +60,10 @@ export async function flushOutboxRow(
   }
 }
 
+function isStudentRosterOutboxPath(path: string): boolean {
+  return /^teams\/[^/]+\/students\/[^/]+$/.test(path);
+}
+
 function isPermissionDenied(error: unknown): boolean {
   return (
     typeof error === 'object' &&
@@ -110,6 +114,21 @@ export async function syncOutbox(): Promise<void> {
           if (r.path.startsWith('sessions/')) payload.createdBy = uid;
         }
       }
+
+      // Never downgrade roster status active → pending from a stale join outbox row.
+      if (isStudentRosterOutboxPath(r.path)) {
+        const ref = docRefForPath(db, r.path);
+        const existing = await getDoc(ref);
+        if (existing.exists()) {
+          const serverStatus = String(existing.data().status ?? 'active');
+          const payloadStatus = String(payload.status ?? 'pending');
+          if (serverStatus === 'active' && payloadStatus === 'pending') {
+            synced.push(r.id);
+            continue;
+          }
+        }
+      }
+
       await flushOutboxRow(r.path, payload);
       synced.push(r.id);
     } catch (e) {

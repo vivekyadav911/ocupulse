@@ -253,6 +253,12 @@ export function createSqliteExports(getDatabase: () => Promise<SQLite.SQLiteData
     await database.runAsync(`DELETE FROM outbox WHERE id IN (${ph})`, ids);
   }
 
+  async function deleteOutboxForPath(path: string): Promise<void> {
+    const outbox = await getAllOutbox();
+    const ids = outbox.filter((r) => r.path === path).map((r) => r.id);
+    await deleteOutboxIds(ids);
+  }
+
   async function markResultSynced(id: string): Promise<void> {
     const existing = await resultsDao.findById(id);
     if (!existing) return;
@@ -283,6 +289,7 @@ export function createSqliteExports(getDatabase: () => Promise<SQLite.SQLiteData
     insertOutbox,
     getAllOutbox,
     deleteOutboxIds,
+    deleteOutboxForPath,
     markResultSynced,
     deleteSessionAndResult,
   };

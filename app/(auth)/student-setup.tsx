@@ -86,8 +86,8 @@ export default function StudentSetupScreen() {
         <Card bordered>
           <Text style={styles.h1}>Student profile</Text>
           <Text style={styles.sub}>
-            Tell us your first name and team. You can join an existing team by typing the same team
-            name your teacher used.
+            Enter your first name and the exact team name from your teacher&apos;s dashboard. You
+            can join right away — your teacher approves or removes you later from Join requests.
           </Text>
           <FormField
             label="First name"

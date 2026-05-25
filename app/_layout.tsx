@@ -15,6 +15,7 @@ import { syncAll } from '../services/sync';
 import { clearStaleOutboxRows } from '../services/firestore';
 import { ensureNotificationPermissions, scheduleStreakReminder } from '../services/notifications';
 
+import { SessionActivityGuard } from '../components/SessionActivityGuard';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { useAuthStore } from '../store/authStore';
 import { useSessionStore } from '../store/sessionStore';
@@ -103,7 +104,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <Slot />
+        <SessionActivityGuard>
+          <Slot />
+        </SessionActivityGuard>
       </ThemeProvider>
     </SafeAreaProvider>
   );

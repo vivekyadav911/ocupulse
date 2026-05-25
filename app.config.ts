@@ -77,6 +77,9 @@ export default (): ExpoConfig => ({
     'expo-video',
   ],
   extra: {
+    eas: {
+      projectId: '0911f931-1fe2-4c03-80bf-f26c82d7a60c',
+    },
     router: { origin: false },
     firebaseApiKey: firebaseEnv('API_KEY'),
     firebaseAuthDomain: firebaseEnv('AUTH_DOMAIN'),

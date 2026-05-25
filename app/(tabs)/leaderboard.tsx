@@ -125,7 +125,7 @@ export default function LeaderboardScreen() {
     : 'No scores yet — open an activity, finish it, and tap Save result.';
 
   return (
-    <ScreenShell scroll={false}>
+    <ScreenShell scroll={false} compactHeader>
       <PageTitle eyebrow="Rankings" title="Board" />
       <Text style={styles.sub}>{subtitle}</Text>
       <View style={styles.chips}>

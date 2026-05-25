@@ -1,4 +1,5 @@
 import { useFocusEffect } from 'expo-router';
+import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Text } from 'react-native';
 import { PageTitle } from '../../components/PageTitle';
@@ -42,6 +43,10 @@ export default function SoundMapScreen() {
 
   const reloadLocal = useCallback(async () => {
     setLocalMarkers(await loadSoundSamplesFromSqlite());
+  }, []);
+
+  useEffect(() => {
+    void Location.requestForegroundPermissionsAsync();
   }, []);
 
   useFocusEffect(
@@ -89,6 +94,8 @@ export default function SoundMapScreen() {
       <StemmMap
         style={styles.map}
         initialRegion={region}
+        showsUserLocation
+        showsMyLocationButton
         markers={markers.map((m) => ({
           id: m.id,
           latitude: m.lat,

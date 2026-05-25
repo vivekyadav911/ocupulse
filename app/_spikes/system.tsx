@@ -34,7 +34,8 @@ function formatTime(ms: number): string {
 
 export default function SystemSpike() {
   const { colors, spacing } = useAppTheme();
-  const { refresh, percent, updatedAt, available, lowPowerMode } = useBatteryLevel();
+  const { refresh, percent, updatedAt, available, lowPowerMode, chargingLabel, isCharging } =
+    useBatteryLevel();
   const [perm, setPerm] = useState('');
   const [customBody, setCustomBody] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -161,7 +162,8 @@ export default function SystemSpike() {
       <View style={styles.batteryCard}>
         <Text style={styles.batteryTitle}>Battery: {batteryLabel}</Text>
         <Text style={styles.batteryMeta}>
-          Last read: {formatTime(lastUpdated)}
+          {chargingLabel}
+          {isCharging ? ' ⚡' : ''} · Last read: {formatTime(lastUpdated)}
           {lowPowerMode ? ' · Low power mode' : ''}
         </Text>
         <Pressable
@@ -180,6 +182,11 @@ export default function SystemSpike() {
       </View>
 
       <Text style={styles.meta}>Notifications: {perm}</Text>
+      <Button
+        title="Request notification permission"
+        variant="accent"
+        onPress={() => void Notifications.requestPermissionsAsync().then((p) => setPerm(p.status))}
+      />
 
       <Text style={styles.section}>Default test</Text>
       <Button title="Schedule notification in 5s" onPress={() => void scheduleDefault()} />

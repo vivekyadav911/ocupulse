@@ -303,10 +303,21 @@ function ParachuteScreenInner() {
             }
           : null,
       );
-      await submitParachuteActivity(payload);
+      let apiNote: string | null = null;
+      try {
+        await submitParachuteActivity(payload);
+      } catch (apiErr) {
+        apiNote =
+          apiErr instanceof Error ? apiErr.message : 'STEMM API unavailable — saved on device.';
+        if (__DEV__) console.warn('[Ocupulse] parachute API upload skipped', apiErr);
+      }
       const sessionId = await persistParachuteResults();
       clearDraft();
-      setState((s) => ({ ...s, uploadStatus: 'success', uploadError: null }));
+      setState((s) => ({
+        ...s,
+        uploadStatus: 'success',
+        uploadError: apiNote,
+      }));
       router.push(`/results/${sessionId}`);
     } catch (e) {
       setState((s) => ({

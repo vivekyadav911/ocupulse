@@ -7,6 +7,9 @@ export async function readBatterySnapshot() {
     lowPowerMode: false,
     available: false,
     updatedAt,
+    batteryState: 0,
+    isCharging: false,
+    chargingLabel: 'Web preview',
   };
 }
 
@@ -18,6 +21,9 @@ export function useBatteryLevel() {
     lowPowerMode: false,
     available: false,
     updatedAt: Date.now(),
+    batteryState: 0,
+    isCharging: false,
+    chargingLabel: 'Web preview',
     refresh: async () => readBatterySnapshot(),
   };
 }
@@ -30,6 +36,9 @@ export function useBattery() {
     lowPowerMode: false,
     available: false,
     updatedAt: Date.now(),
+    batteryState: 0,
+    isCharging: false,
+    chargingLabel: 'Web preview',
     refresh: async () => readBatterySnapshot(),
     warn: false,
     critical: false,

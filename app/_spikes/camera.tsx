@@ -1,6 +1,6 @@
 import { CameraView } from 'expo-camera';
 import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { useCameraRecorder } from '../../hooks/useCameraRecorder';
@@ -19,6 +19,7 @@ function permissionLabel(
 }
 
 export default function CameraSpike() {
+  const [torchOn, setTorchOn] = useState(false);
   const { recordingDisabled } = useRecordingGate();
   const cam = useCameraRecorder({ maxDurationSec: 10, frameSampleHz: 120, recordAudio: false });
   const styles = useThemedStyles((t) => ({
@@ -108,6 +109,7 @@ export default function CameraSpike() {
             mode="video"
             facing="back"
             mute
+            enableTorch={torchOn}
             onCameraReady={cam.onCameraReady}
             onMountError={cam.onMountError}
           />
@@ -131,6 +133,12 @@ export default function CameraSpike() {
         variant="accent"
         onPress={() => void onRequestPermissions()}
         disabled={cam.permissionsLoading}
+      />
+      <Button
+        title={torchOn ? 'Torch off' : 'Torch on'}
+        variant="secondary"
+        onPress={() => setTorchOn((v) => !v)}
+        disabled={!showPreview}
       />
       <Button
         title={cam.isRecording ? 'Stop (1.5s+ for 120 frames)' : 'Record'}

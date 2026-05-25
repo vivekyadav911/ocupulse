@@ -21,6 +21,9 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+# EAS local build logs
+build-android-preview.log
+
 # debug
 npm-debug.*
 yarn-debug.*

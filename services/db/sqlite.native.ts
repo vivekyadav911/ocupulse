@@ -82,6 +82,7 @@ export const {
   insertOutbox,
   getAllOutbox,
   deleteOutboxIds,
+  deleteOutboxForPath,
   markResultSynced,
   deleteSessionAndResult,
 } = api;

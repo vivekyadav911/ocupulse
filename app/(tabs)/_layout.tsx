@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BatteryStatusStrip } from '../../components/BatteryStatusStrip';
 import { useBattery } from '../../hooks/useBattery';
 import { resolveAuthRedirect } from '../../lib/authRouting';
 import { useAuthStore } from '../../store/authStore';
@@ -42,6 +44,9 @@ function TabsLayoutInner() {
 
   return (
     <View style={{ flex: 1 }}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
+        <BatteryStatusStrip />
+      </SafeAreaView>
       <BatteryBanner />
       <Tabs
         screenOptions={{

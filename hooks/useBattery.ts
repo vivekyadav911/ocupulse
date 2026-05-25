@@ -13,7 +13,23 @@ export type BatterySnapshot = {
   lowPowerMode: boolean;
   available: boolean;
   updatedAt: number;
+  batteryState: Battery.BatteryState;
+  isCharging: boolean;
+  chargingLabel: string;
 };
+
+function chargingLabelFor(state: Battery.BatteryState): string {
+  switch (state) {
+    case Battery.BatteryState.CHARGING:
+      return 'Charging';
+    case Battery.BatteryState.FULL:
+      return 'Full (plugged in)';
+    case Battery.BatteryState.UNPLUGGED:
+      return 'On battery';
+    default:
+      return 'Unknown';
+  }
+}
 
 export type BatteryLevelState = BatterySnapshot & {
   /** @deprecated use rawLevel — normalized 0–1 for gates */
@@ -37,16 +53,28 @@ export async function readBatterySnapshot(): Promise<BatterySnapshot> {
       lowPowerMode: false,
       available: false,
       updatedAt,
+      batteryState: Battery.BatteryState.UNKNOWN,
+      isCharging: false,
+      chargingLabel: 'Unavailable',
     };
   }
 
   const level = await Battery.getBatteryLevelAsync();
   let lowPowerMode = false;
+  let batteryState = Battery.BatteryState.UNKNOWN;
   try {
     lowPowerMode = await Battery.isLowPowerModeEnabledAsync();
   } catch {
     /* optional on some platforms */
   }
+  try {
+    batteryState = await Battery.getBatteryStateAsync();
+  } catch {
+    /* optional on some platforms */
+  }
+
+  const isCharging =
+    batteryState === Battery.BatteryState.CHARGING || batteryState === Battery.BatteryState.FULL;
 
   return {
     rawLevel: level,
@@ -54,6 +82,9 @@ export async function readBatterySnapshot(): Promise<BatterySnapshot> {
     lowPowerMode,
     available: level >= 0,
     updatedAt,
+    batteryState,
+    isCharging,
+    chargingLabel: chargingLabelFor(batteryState),
   };
 }
 
@@ -64,6 +95,9 @@ export function useBatteryLevel(): BatteryLevelState {
     lowPowerMode: false,
     available: false,
     updatedAt: 0,
+    batteryState: Battery.BatteryState.UNKNOWN,
+    isCharging: false,
+    chargingLabel: 'Reading…',
   });
 
   const refresh = useCallback(async () => {
@@ -75,17 +109,41 @@ export function useBatteryLevel(): BatteryLevelState {
   useEffect(() => {
     void refresh();
     let levelSub: Battery.Subscription | undefined;
+    let stateSub: Battery.Subscription | undefined;
     void Battery.isAvailableAsync().then((ok) => {
       if (!ok) return;
       levelSub = Battery.addBatteryLevelListener(({ batteryLevel }) => {
-        void Battery.isLowPowerModeEnabledAsync().then((lowPowerMode) => {
+        void Promise.all([
+          Battery.isLowPowerModeEnabledAsync().catch(() => false),
+          Battery.getBatteryStateAsync().catch(() => Battery.BatteryState.UNKNOWN),
+        ]).then(([lowPowerMode, batteryState]) => {
+          const isCharging =
+            batteryState === Battery.BatteryState.CHARGING ||
+            batteryState === Battery.BatteryState.FULL;
           setSnapshot({
             rawLevel: batteryLevel,
             percent: toPercent(batteryLevel),
             lowPowerMode,
             available: batteryLevel >= 0,
             updatedAt: Date.now(),
+            batteryState,
+            isCharging,
+            chargingLabel: chargingLabelFor(batteryState),
           });
+        });
+      });
+      stateSub = Battery.addBatteryStateListener(({ batteryState }) => {
+        setSnapshot((prev) => {
+          const isCharging =
+            batteryState === Battery.BatteryState.CHARGING ||
+            batteryState === Battery.BatteryState.FULL;
+          return {
+            ...prev,
+            batteryState,
+            isCharging,
+            chargingLabel: chargingLabelFor(batteryState),
+            updatedAt: Date.now(),
+          };
         });
       });
     });
@@ -98,6 +156,7 @@ export function useBatteryLevel(): BatteryLevelState {
 
     return () => {
       levelSub?.remove();
+      stateSub?.remove();
       clearInterval(poll);
       appSub.remove();
     };

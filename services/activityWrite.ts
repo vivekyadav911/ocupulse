@@ -1,5 +1,7 @@
+import { activityDisplayName } from '../lib/activities/labels';
 import { useSessionStore } from '../store/sessionStore';
 import { attachLocalMedia, writeSessionOptimistic } from './firestore';
+import { notifyExperimentSaved } from './notifications';
 import { persistMedia, queueMediaPersist } from './storage';
 
 export async function saveActivityResult(input: {
@@ -40,5 +42,6 @@ export async function saveActivityResult(input: {
     }
   }
 
+  void notifyExperimentSaved(activityDisplayName(input.activityType));
   return sessionId;
 }

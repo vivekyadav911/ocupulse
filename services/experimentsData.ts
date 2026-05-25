@@ -13,10 +13,12 @@ import {
 import { getCurrentUser } from './auth';
 import { deleteSessionAndResult, getAllOutbox, resultsDao } from './db/sqlite';
 import { getTeamTeacherId } from './profiles';
+import { activityDisplayName } from '../lib/activities/labels';
 import { formatLeaderboardDisplay } from '../lib/leaderboard/formatLeaderRow';
 import { payloadFromUnknown, studentFirstNameFromPayload } from '../lib/scores/stored';
 import type { ActivityType } from '../store/sessionStore';
 import { getFirestoreDb } from './firebase';
+import { notifyExperimentDeleted } from './notifications';
 import type { LeaderboardFilter } from './firestore';
 
 export type ExperimentRecord = {
@@ -264,18 +266,23 @@ export function subscribeTeamExperiments(
 }
 
 export async function deleteExperimentRecord(sessionId: string): Promise<void> {
+  const existing = await getExperimentRecord(sessionId);
   await deleteSessionAndResult(sessionId);
   const db = getFirestoreDb();
-  if (!db) return;
-  try {
-    await deleteDoc(doc(db, 'scores', sessionId));
-  } catch {
-    /* may not exist remotely */
+  if (db) {
+    try {
+      await deleteDoc(doc(db, 'scores', sessionId));
+    } catch {
+      /* may not exist remotely */
+    }
+    try {
+      await deleteDoc(doc(db, 'sessions', sessionId));
+    } catch {
+      /* ignore */
+    }
   }
-  try {
-    await deleteDoc(doc(db, 'sessions', sessionId));
-  } catch {
-    /* ignore */
+  if (existing) {
+    void notifyExperimentDeleted(activityDisplayName(existing.activityType));
   }
 }
 

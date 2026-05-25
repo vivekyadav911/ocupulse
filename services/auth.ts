@@ -8,6 +8,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { deleteField, doc, getDoc, setDoc } from 'firebase/firestore';
+import { withoutUndefined } from '../lib/firestoreSanitize';
 import type { UserProfile, UserRole } from './db/types';
 import { getFirebaseAuth, getFirestoreDb, isFirebaseConfigured } from './firebase';
 
@@ -99,9 +100,7 @@ export async function createUserProfile(
   }
   const now = Date.now();
   const existing = await getDoc(doc(db, 'users', uid));
-  const createdAt = existing.exists()
-    ? Number(existing.data()?.createdAt ?? now)
-    : now;
+  const createdAt = existing.exists() ? Number(existing.data()?.createdAt ?? now) : now;
 
   const profile: UserProfile = {
     uid,
@@ -125,7 +124,7 @@ export async function createUserProfile(
     patch.managedTeamIds = input.managedTeamIds ?? deleteField();
   }
 
-  await setDoc(doc(db, 'users', uid), patch, { merge: true });
+  await setDoc(doc(db, 'users', uid), withoutUndefined(patch), { merge: true });
   return profile;
 }
 
@@ -166,7 +165,9 @@ export async function updateUserProfile(uid: string, patch: Partial<UserProfile>
   if (!db) {
     throw new Error('Firestore is not available.');
   }
-  await setDoc(doc(db, 'users', uid), { ...patch, updatedAt: Date.now() }, { merge: true });
+  await setDoc(doc(db, 'users', uid), withoutUndefined({ ...patch, updatedAt: Date.now() }), {
+    merge: true,
+  });
 }
 
 export async function signOutUser() {

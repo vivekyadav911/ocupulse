@@ -57,7 +57,7 @@ export default function StudentDetailScreen() {
   }, [studentId, activeTeamId]);
 
   return (
-    <ScreenShell>
+    <ScreenShell compactHeader>
       <PageTitle title={firstName} />
       <Card bordered style={styles.card}>
         <Text style={styles.label}>Profile</Text>

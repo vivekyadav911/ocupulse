@@ -43,5 +43,5 @@ export async function removeTeamStudent(teamId: string, studentId: string): Prom
 
 export async function lookupTeamIdByName(name: string): Promise<string | null> {
   const team = await findTeamByName(name.trim());
-  return team?.id ?? null;
+  return team?.teacherId ? team.id : null;
 }

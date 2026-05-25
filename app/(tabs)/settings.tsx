@@ -5,6 +5,9 @@ import { Card } from '../../components/Card';
 import { PageTitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
 import { signOutUser } from '../../services/auth';
+import { ensureNotificationPermissions } from '../../services/notifications';
+import { registerBackgroundSync, runBackgroundOutboxSyncNow } from '../../services/tasks';
+import { showAlert } from '../../lib/alert';
 import { useAuthStore } from '../../store/authStore';
 import { useSessionStore, type GradeLevel } from '../../store/sessionStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -49,7 +52,7 @@ export default function SettingsScreen() {
   const roleLabel = role === 'teacher' ? 'Teacher' : role === 'student' ? 'Student' : '—';
 
   return (
-    <ScreenShell>
+    <ScreenShell compactHeader>
       <PageTitle title="Settings" />
       <Card bordered style={styles.card}>
         <Text style={styles.label}>Account</Text>
@@ -91,6 +94,49 @@ export default function SettingsScreen() {
         ) : null}
         <Text style={styles.label}>Team</Text>
         <Text style={styles.now}>{teamName}</Text>
+        <Text style={styles.label}>Device & sync</Text>
+        <Button
+          title="Allow notifications"
+          variant="secondary"
+          onPress={() =>
+            void ensureNotificationPermissions().then((ok) =>
+              showAlert(
+                'Notifications',
+                ok
+                  ? 'Ready — experiment save/delete will show local alerts.'
+                  : 'Not granted yet. Open iPhone Settings → Expo Go → Notifications, allow alerts, then tap this again.',
+              ),
+            )
+          }
+        />
+        <Button
+          title="Run background sync now"
+          variant="secondary"
+          onPress={() =>
+            void runBackgroundOutboxSyncNow().then((r) =>
+              showAlert('Sync', r === 'new-data' ? 'Outbox synced.' : 'Sync failed — see logs.'),
+            )
+          }
+        />
+        <Button
+          title="Register background fetch task"
+          variant="secondary"
+          onPress={() =>
+            void registerBackgroundSync().then(() =>
+              showAlert('Background fetch', 'Task registered (dev/EAS build; not in Expo Go).'),
+            )
+          }
+        />
+        <Button
+          title="Firestore notes lab"
+          variant="secondary"
+          onPress={() => router.push('/_spikes/notes' as never)}
+        />
+        <Button
+          title="Capability spikes (sensors, maps…)"
+          variant="secondary"
+          onPress={() => router.push('/_spikes')}
+        />
         <Button title="Sign out" variant="danger" onPress={logout} />
       </Card>
     </ScreenShell>

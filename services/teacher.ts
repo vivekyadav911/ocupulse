@@ -83,9 +83,15 @@ export function subscribeTeamStudents(
           status: statusRaw === 'pending' ? 'pending' : 'active',
         };
       });
+      if (__DEV__) {
+        console.log(`[Ocupulse] roster team=${teamId} members=${rows.length}`);
+      }
       onRows(rows);
     },
-    () => onRows([]),
+    (err) => {
+      console.error('[Ocupulse] subscribeTeamStudents failed', teamId, err);
+      onRows([]);
+    },
   );
 }
 
