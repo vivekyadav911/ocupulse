@@ -9,7 +9,7 @@ import {
 import type { LeaderboardFilter, LeaderRow } from './firestore';
 import { payloadFromUnknown } from '../lib/scores/stored';
 import { getFirestoreDb } from './firebase';
-import { leaderRowFromStored, subscribeTeamLeaderboard } from './leaderboard';
+import { leaderRowFromStored } from './leaderboard';
 
 export type TeamSummary = {
   id: string;
@@ -87,15 +87,6 @@ export function subscribeTeamStudents(
     },
     () => onRows([]),
   );
-}
-
-/** @deprecated Name kept for callers — uses experimentsData merge + leaderboard ranking. */
-export function subscribeTeamScores(
-  teamId: string,
-  activityType: LeaderboardFilter,
-  onRows: (rows: StudentScoreRow[]) => void,
-): Unsubscribe {
-  return subscribeTeamLeaderboard(teamId, activityType, onRows);
 }
 
 export async function getStudentScoreHistory(studentId: string): Promise<StudentScoreRow[]> {
