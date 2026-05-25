@@ -272,10 +272,13 @@ function TeacherHome() {
       </Card>
 
       <Card bordered style={styles.card}>
-        <Text style={styles.sectionTitle}>Team roster</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Team roster</Text>
+          {pending.length > 0 ? <Badge label={`${pending.length} pending`} /> : null}
+        </View>
         <Text style={styles.sub}>
           Approve pending students, remove members, or open profiles. Students join with your team
-          name and appear here.
+          name and appear here — they cannot run experiments until you accept them.
         </Text>
         {!activeTeamId ? (
           <Text style={styles.empty}>Select or create a team above.</Text>

@@ -76,7 +76,8 @@ export default function TeacherSetupScreen() {
           <Text style={styles.h1}>Teacher setup</Text>
           <Text style={styles.sub}>
             Create the team name your students will use when they register. Share this exact name
-            with your class.
+            with your class. After setup you can run experiments yourself (saved privately) and
+            approve students under Team management on the dashboard.
           </Text>
           <FormField
             label="Your name"

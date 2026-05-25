@@ -79,6 +79,16 @@ export default function SettingsScreen() {
             ))}
           </>
         ) : null}
+        {role === 'teacher' ? (
+          <>
+            <Text style={styles.label}>Teacher mode</Text>
+            <Text style={styles.now}>
+              Run experiments from the dashboard for personal practice. Use Team management for
+              roster approval and the team experiment library. One email cannot be both teacher and
+              student — use separate accounts or the Student tab for a student profile.
+            </Text>
+          </>
+        ) : null}
         <Text style={styles.label}>Team</Text>
         <Text style={styles.now}>{teamName}</Text>
         <Button title="Sign out" variant="danger" onPress={logout} />

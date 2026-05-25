@@ -9,11 +9,13 @@ import { PageTitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
 import { showResultsInterstitialIfAllowed } from '../../lib/admobGate';
 import { getExperimentRecord, type ExperimentRecord } from '../../services/experimentsData';
+import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function ResultsDetailScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const router = useRouter();
+  const role = useSessionStore((s) => s.role);
   const [record, setRecord] = useState<ExperimentRecord | null>(null);
   const styles = useThemedStyles((t) => ({
     id: {
@@ -62,7 +64,12 @@ export default function ResultsDetailScreen() {
               title="View in Experiments Data"
               variant="secondary"
               icon="folder-open-outline"
-              onPress={() => router.push('/experiments-data')}
+              onPress={() =>
+                router.push({
+                  pathname: '/experiments-data',
+                  params: role === 'teacher' ? { scope: 'personal' } : {},
+                })
+              }
             />
           </>
         ) : (
