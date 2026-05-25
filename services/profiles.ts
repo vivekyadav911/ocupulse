@@ -1,4 +1,13 @@
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  query,
+  setDoc,
+  where,
+} from 'firebase/firestore';
 import type { TeamMemberStatus } from '../store/sessionStore';
 import { getCurrentUser, getUserProfile, updateUserProfile } from './auth';
 import { insertOutbox, studentsDao, teamsDao } from './db/sqlite';
@@ -9,19 +18,77 @@ function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function normalizeTeamName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function teamFirestorePayload(team: Team): Record<string, unknown> {
+  return {
+    name: team.name,
+    nameLower: normalizeTeamName(team.name),
+    teacherId: team.teacherId ?? null,
+    schoolId: team.schoolId ?? null,
+    updatedAt: Date.now(),
+  };
+}
+
+async function persistTeamDoc(team: Team, created = false): Promise<void> {
+  const payload = {
+    ...teamFirestorePayload(team),
+    ...(created ? { createdAt: Date.now() } : {}),
+  };
+  await insertOutbox(`teams/${team.id}`, payload);
+  const db = getFirestoreDb();
+  if (!db) return;
+  try {
+    await setDoc(doc(db, 'teams', team.id), payload, { merge: true });
+  } catch (e) {
+    console.warn('[Ocupulse] persistTeamDoc failed', e);
+  }
+}
+
+async function persistStudentRoster(
+  teamId: string,
+  student: Student,
+  status: 'pending' | 'active',
+  email: string,
+): Promise<void> {
+  const payload = {
+    firstName: student.firstName,
+    uid: student.uid,
+    email,
+    teamId,
+    status,
+    createdAt: Date.now(),
+  };
+  await insertOutbox(`teams/${teamId}/students/${student.id}`, payload);
+  const db = getFirestoreDb();
+  if (!db) return;
+  try {
+    await setDoc(doc(db, 'teams', teamId, 'students', student.id), payload, { merge: true });
+  } catch (e) {
+    console.warn('[Ocupulse] persistStudentRoster failed', e);
+  }
+}
+
 export async function findTeamByName(name: string): Promise<Team | null> {
   const trimmed = name.trim();
   if (!trimmed) return null;
+  const nameLower = normalizeTeamName(trimmed);
 
   const localTeams = await teamsDao.findAll();
-  const local = localTeams.find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
+  const local = localTeams.find((t) => normalizeTeamName(t.name) === nameLower);
   if (local) return local;
 
   const db = getFirestoreDb();
   if (!db) return null;
-  const q = query(collection(db, 'teams'), where('name', '==', trimmed));
-  const snap = await getDocs(q);
+
+  let snap = await getDocs(query(collection(db, 'teams'), where('nameLower', '==', nameLower)));
+  if (snap.empty) {
+    snap = await getDocs(query(collection(db, 'teams'), where('name', '==', trimmed)));
+  }
   if (snap.empty) return null;
+
   const d = snap.docs[0]!;
   const data = d.data();
   const team: Team = {
@@ -31,7 +98,9 @@ export async function findTeamByName(name: string): Promise<Team | null> {
     schoolId: data.schoolId != null ? String(data.schoolId) : null,
     synced: 1,
   };
-  await teamsDao.insert(team);
+  const existing = await teamsDao.findById(team.id);
+  if (existing) await teamsDao.update(team);
+  else await teamsDao.insert(team);
   return team;
 }
 
@@ -48,13 +117,7 @@ export async function createOrJoinTeam(teamName: string): Promise<Team> {
     synced: 0,
   };
   await teamsDao.insert(team);
-  await insertOutbox(`teams/${team.id}`, {
-    name: team.name,
-    teacherId: null,
-    schoolId: team.schoolId,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
+  await persistTeamDoc(team, true);
   return team;
 }
 
@@ -88,13 +151,7 @@ export async function createTeacherTeam(input: {
   if (local) await teamsDao.update(team);
   else await teamsDao.insert(team);
 
-  await insertOutbox(`teams/${team.id}`, {
-    name: team.name,
-    teacherId: user.uid,
-    schoolId: team.schoolId,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
+  await persistTeamDoc(team, !existing);
 
   const managedTeamIds = existing ? [team.id] : [team.id];
   await updateUserProfile(user.uid, {
@@ -126,14 +183,7 @@ export async function setupStudentProfile(input: {
 
   await studentsDao.insert(student);
   const joinStatus = team.teacherId ? 'pending' : 'active';
-  await insertOutbox(`teams/${team.id}/students/${student.id}`, {
-    firstName: student.firstName,
-    uid: student.uid,
-    email: user.email ?? '',
-    teamId: team.id,
-    status: joinStatus,
-    createdAt: Date.now(),
-  });
+  await persistStudentRoster(team.id, student, joinStatus, user.email ?? '');
 
   await updateUserProfile(user.uid, {
     role: 'student',

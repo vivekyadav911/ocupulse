@@ -52,6 +52,25 @@ export async function scheduleStreakReminder(): Promise<void> {
   });
 }
 
+/** Immediate local notification when a student requests to join a teacher's team. */
+export async function notifyStudentJoinRequest(
+  studentName: string,
+  teamName: string,
+): Promise<void> {
+  const Notifications = await loadNotifications();
+  if (!Notifications) return;
+  const ok = await ensureNotificationPermissions();
+  if (!ok) return;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'New join request',
+      body: `${studentName} wants to join ${teamName}`,
+      data: { type: 'roster_join' },
+    },
+    trigger: null,
+  });
+}
+
 export async function notifyRankUp(rank: number): Promise<void> {
   const Notifications = await loadNotifications();
   if (!Notifications) return;

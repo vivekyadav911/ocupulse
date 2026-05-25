@@ -69,7 +69,7 @@ export default function StudentSetupScreen() {
         teamMemberStatus: needsApproval ? 'pending' : 'active',
       });
       useAuthStore.getState().setProfileHydrated(true);
-      void syncAll();
+      await syncAll();
       router.replace('/(tabs)');
     } catch (e) {
       Alert.alert('Setup', e instanceof Error ? e.message : 'Could not save profile');
