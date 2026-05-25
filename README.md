@@ -25,11 +25,15 @@ Place `google-services.json` and `GoogleService-Info.plist` at the **repo root**
 - `npm start` — Expo dev server  
 - `npm run lint` — ESLint  
 - `npm run secret-scan` — block committed API keys / AdMob units  
-- `npm test` — Jest  
+- `npm test` — Jest (179 tests)  
+- `npm run firebase:setup` — create `.env` from Firebase CLI  
+- `npm run firebase:deploy-firestore` — deploy rules + indexes (`firebase login` first)  
 - `npm run android` / `npm run ios`
 
 ## Docs
 
+- [`docs/team-workflow.md`](docs/team-workflow.md) — students, teachers, approval, personal vs team data  
+- [`docs/pre-release-checklist.md`](docs/pre-release-checklist.md) — smoke test before demo  
 - [`docs/contributing.md`](docs/contributing.md) — branch / PR / secret-scan routine  
 - [`docs/sprint-1/`](docs/sprint-1/) — A1/A2 imports, [competitor SUS analysis](docs/sprint-1/competitor-analysis.md), capability matrix, Firebase rationale  
 - [`docs/sprint-2/`](docs/sprint-2/) — [screen flow + wireframes](docs/sprint-2/screen-flow.md), spikes, [design tokens](docs/sprint-2/design-tokens.md), [components](docs/sprint-2/components.md), [retro](docs/sprint-2/sprint-2-retro.md), [closeout](docs/sprint-2/closeout.md)  
