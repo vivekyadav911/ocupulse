@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { Text, useWindowDimensions, View } from 'react-native';
 import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
@@ -411,17 +411,8 @@ export default function ReactionScreen() {
   );
 
   return (
-    <ExperimentScreen title="Reaction Board Challenge">
-      {phase3Locked ? (
-        <View style={{ flex: 1, paddingBottom: 32 }}>{body}</View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: 32 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {body}
-        </ScrollView>
-      )}
+    <ExperimentScreen title="Reaction Board Challenge" scrollEnabled={!phase3Locked}>
+      {body}
     </ExperimentScreen>
   );
 }

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
@@ -280,120 +280,118 @@ export default function HumanPerfScreen() {
     activeAttempt != null && nextMovement != null && nextMovement !== state.activeMovement;
 
   return (
-    <ExperimentScreen title="Human Performance Lab">
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <ActivityCard title="Stretch Speed & Gracefulness" live={recording}>
-          <Text style={styles.p}>
-            Hold the phone and perform each hand movement smoothly. The accelerometer measures jerk
-            — sudden changes in motion. Lower jerk means smoother, more graceful movement.
-          </Text>
+    <ExperimentScreen title="Human Performance Lab" contentContainerStyle={styles.scrollContent}>
+      <ActivityCard title="Stretch Speed & Gracefulness" live={recording}>
+        <Text style={styles.p}>
+          Hold the phone and perform each hand movement smoothly. The accelerometer measures jerk —
+          sudden changes in motion. Lower jerk means smoother, more graceful movement.
+        </Text>
 
-          <HumanperfMovementSelector
-            attempts={state.attempts}
-            activeMovement={state.activeMovement}
-            onSelect={selectMovement}
-            disabled={recording}
-          />
+        <HumanperfMovementSelector
+          attempts={state.attempts}
+          activeMovement={state.activeMovement}
+          onSelect={selectMovement}
+          disabled={recording}
+        />
 
-          <Text style={styles.p}>Duration</Text>
-          <View style={styles.durationRow}>
-            {ATTEMPT_DURATIONS_SEC.map((sec) => (
-              <Pressable
-                key={sec}
-                style={[
-                  styles.durationChip,
-                  state.attemptDurationSec === sec && styles.durationChipActive,
-                ]}
-                disabled={recording}
-                onPress={() => {
-                  setState((s) => ({ ...s, attemptDurationSec: sec }));
-                  resetAttempt(sec);
-                }}
-              >
-                <Text style={styles.durationText}>{sec}s</Text>
-              </Pressable>
-            ))}
-          </View>
+        <Text style={styles.p}>Duration</Text>
+        <View style={styles.durationRow}>
+          {ATTEMPT_DURATIONS_SEC.map((sec) => (
+            <Pressable
+              key={sec}
+              style={[
+                styles.durationChip,
+                state.attemptDurationSec === sec && styles.durationChipActive,
+              ]}
+              disabled={recording}
+              onPress={() => {
+                setState((s) => ({ ...s, attemptDurationSec: sec }));
+                resetAttempt(sec);
+              }}
+            >
+              <Text style={styles.durationText}>{sec}s</Text>
+            </Pressable>
+          ))}
+        </View>
 
-          <HumanperfMovementDiagram movement={state.activeMovement} recording={recording} />
+        <HumanperfMovementDiagram movement={state.activeMovement} recording={recording} />
 
-          <HumanperfJerkGauge
-            liveJerkMm={liveJerkMm}
-            peakJerkMm={
-              recording || uiPhase === 'attemptDone'
-                ? peakJerkMm
-                : (activeAttempt?.peakJerkMm ?? null)
-            }
-            recording={recording}
-          />
+        <HumanperfJerkGauge
+          liveJerkMm={liveJerkMm}
+          peakJerkMm={
+            recording || uiPhase === 'attemptDone'
+              ? peakJerkMm
+              : (activeAttempt?.peakJerkMm ?? null)
+          }
+          recording={recording}
+        />
 
-          <HumanperfFeedbackControls
-            enabled={state.feedbackEnabled}
-            thresholdMm={state.feedbackThresholdMm}
-            onEnabledChange={(feedbackEnabled) => setState((s) => ({ ...s, feedbackEnabled }))}
-            onThresholdChange={(feedbackThresholdMm) =>
-              setState((s) => ({ ...s, feedbackThresholdMm }))
-            }
-            disabled={recording}
-          />
+        <HumanperfFeedbackControls
+          enabled={state.feedbackEnabled}
+          thresholdMm={state.feedbackThresholdMm}
+          onEnabledChange={(feedbackEnabled) => setState((s) => ({ ...s, feedbackEnabled }))}
+          onThresholdChange={(feedbackThresholdMm) =>
+            setState((s) => ({ ...s, feedbackThresholdMm }))
+          }
+          disabled={recording}
+        />
 
-          <HumanperfAttemptPanel
-            phase={uiPhase}
-            secsLeft={secsLeft}
-            progress={progress}
-            attemptDurationSec={state.attemptDurationSec}
-            currentAttempt={activeAttempt}
-            recordingDisabled={recordingDisabled}
-            onStart={handleStart}
-            onStop={handleStop}
-            onRetry={handleRetry}
-            onNextMovement={handleNextMovement}
-            canAdvance={canAdvance}
-          />
+        <HumanperfAttemptPanel
+          phase={uiPhase}
+          secsLeft={secsLeft}
+          progress={progress}
+          attemptDurationSec={state.attemptDurationSec}
+          currentAttempt={activeAttempt}
+          recordingDisabled={recordingDisabled}
+          onStart={handleStart}
+          onStop={handleStop}
+          onRetry={handleRetry}
+          onNextMovement={handleNextMovement}
+          canAdvance={canAdvance}
+        />
+      </ActivityCard>
+
+      {completed > 0 ? (
+        <ActivityCard title="Comparison">
+          <HumanperfResultsTable attempts={state.attempts} />
+          <HumanperfMovementChart attempts={state.attempts} />
+          <HumanperfHardestMovementCard attempts={state.attempts} />
         </ActivityCard>
+      ) : null}
 
-        {completed > 0 ? (
-          <ActivityCard title="Comparison">
-            <HumanperfResultsTable attempts={state.attempts} />
-            <HumanperfMovementChart attempts={state.attempts} />
-            <HumanperfHardestMovementCard attempts={state.attempts} />
-          </ActivityCard>
-        ) : null}
-
-        {allMovementsComplete(state.attempts) ? (
-          <ActivityCard title="Reflection & save">
-            <HumanperfReflectionForm reflection={state.reflection} onChange={setReflection} />
-            <View style={styles.actions}>
-              <Button
-                title={state.uploadStatus === 'uploading' ? 'Saving…' : 'Save result'}
-                onPress={() => void saveResults()}
-                disabled={
-                  state.uploadStatus === 'uploading' ||
-                  !state.reflection.hardestToKeepSmooth.trim() ||
-                  !state.reflection.feedbackHelped.trim() ||
-                  !state.reflection.surprises.trim()
-                }
-              />
-              <Button title="Home" variant="secondary" onPress={() => router.back()} />
-            </View>
-            {state.uploadStatus === 'success' && !state.uploadError ? (
-              <Text style={[styles.uploadStatus, styles.uploadSuccess]}>
-                Saved — open Experiments Data to export or share your report.
-              </Text>
-            ) : null}
-            {state.uploadStatus === 'error' && state.uploadError ? (
-              <Text style={[styles.uploadStatus, styles.uploadError]}>{state.uploadError}</Text>
-            ) : null}
-          </ActivityCard>
-        ) : (
-          <ActivityCard title="Progress">
-            <Text style={styles.p}>
-              Complete all 3 movements ({completed}/3) to unlock reflection and group upload.
-            </Text>
+      {allMovementsComplete(state.attempts) ? (
+        <ActivityCard title="Reflection & save">
+          <HumanperfReflectionForm reflection={state.reflection} onChange={setReflection} />
+          <View style={styles.actions}>
+            <Button
+              title={state.uploadStatus === 'uploading' ? 'Saving…' : 'Save result'}
+              onPress={() => void saveResults()}
+              disabled={
+                state.uploadStatus === 'uploading' ||
+                !state.reflection.hardestToKeepSmooth.trim() ||
+                !state.reflection.feedbackHelped.trim() ||
+                !state.reflection.surprises.trim()
+              }
+            />
             <Button title="Home" variant="secondary" onPress={() => router.back()} />
-          </ActivityCard>
-        )}
-      </ScrollView>
+          </View>
+          {state.uploadStatus === 'success' && !state.uploadError ? (
+            <Text style={[styles.uploadStatus, styles.uploadSuccess]}>
+              Saved — open Experiments Data to export or share your report.
+            </Text>
+          ) : null}
+          {state.uploadStatus === 'error' && state.uploadError ? (
+            <Text style={[styles.uploadStatus, styles.uploadError]}>{state.uploadError}</Text>
+          ) : null}
+        </ActivityCard>
+      ) : (
+        <ActivityCard title="Progress">
+          <Text style={styles.p}>
+            Complete all 3 movements ({completed}/3) to unlock reflection and group upload.
+          </Text>
+          <Button title="Home" variant="secondary" onPress={() => router.back()} />
+        </ActivityCard>
+      )}
     </ExperimentScreen>
   );
 }

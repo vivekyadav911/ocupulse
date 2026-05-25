@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { ActivityCard } from '../../components/ActivityCard';
 import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
@@ -218,91 +218,92 @@ export default function EarthquakeScreen() {
   const showRunResults = activeRun.readings != null && !testRunning;
 
   return (
-    <ExperimentScreen title="Earthquake-Resistant Structure">
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <ActivityCard title="Earthquake Structure" live={testRunning}>
-          <Text style={styles.p}>
-            Build up to 3 paper structures, place the phone on each model, and run the earthquake
-            simulator. Lower peak displacement means a more stable design.
-          </Text>
+    <ExperimentScreen
+      title="Earthquake-Resistant Structure"
+      contentContainerStyle={styles.scrollContent}
+    >
+      <ActivityCard title="Earthquake Structure" live={testRunning}>
+        <Text style={styles.p}>
+          Build up to 3 paper structures, place the phone on each model, and run the earthquake
+          simulator. Lower peak displacement means a more stable design.
+        </Text>
 
-          <EarthquakeDesignSelector
-            runs={state.runs}
-            activeDesign={state.activeDesign}
-            onSelect={selectDesign}
-            disabled={testRunning}
+        <EarthquakeDesignSelector
+          runs={state.runs}
+          activeDesign={state.activeDesign}
+          onSelect={selectDesign}
+          disabled={testRunning}
+        />
+
+        <EarthquakeDesignForm run={activeRun} onChange={updateActiveRun} disabled={testRunning} />
+
+        <EarthquakeSimulatorPanel
+          phase={testRunning ? 'running' : showRunResults ? 'done' : 'idle'}
+          secsLeft={secsLeft}
+          progress={progress}
+          testDurationSec={state.testDurationSec}
+          onDurationChange={(testDurationSec) => setState((s) => ({ ...s, testDurationSec }))}
+          onStart={handleStartTest}
+          disabled={recordingDisabled || testRunning}
+        />
+
+        {showRunResults && activeRun.readings ? (
+          <EarthquakeRunResults
+            readings={activeRun.readings}
+            testDurationSec={activeRun.testDurationSec}
+            onReplay={handleReplay}
+            replayDisabled={testRunning || recordingDisabled}
           />
-
-          <EarthquakeDesignForm run={activeRun} onChange={updateActiveRun} disabled={testRunning} />
-
-          <EarthquakeSimulatorPanel
-            phase={testRunning ? 'running' : showRunResults ? 'done' : 'idle'}
-            secsLeft={secsLeft}
-            progress={progress}
-            testDurationSec={state.testDurationSec}
-            onDurationChange={(testDurationSec) => setState((s) => ({ ...s, testDurationSec }))}
-            onStart={handleStartTest}
-            disabled={recordingDisabled || testRunning}
-          />
-
-          {showRunResults && activeRun.readings ? (
-            <EarthquakeRunResults
-              readings={activeRun.readings}
-              testDurationSec={activeRun.testDurationSec}
-              onReplay={handleReplay}
-              replayDisabled={testRunning || recordingDisabled}
-            />
-          ) : null}
-        </ActivityCard>
-
-        {completed > 0 ? (
-          <ActivityCard title="Comparison">
-            <EarthquakeResultsTable runs={state.runs} />
-            <EarthquakeDisplacementChart runs={state.runs} />
-            <EarthquakeSummaryCard runs={state.runs} />
-          </ActivityCard>
         ) : null}
+      </ActivityCard>
 
-        <ActivityCard title="Reflection">
-          <FormField
-            label="Which design worked best and why?"
-            value={state.reflection.bestDesignWhy}
-            onChangeText={(bestDesignWhy) => setReflection({ bestDesignWhy })}
-            multiline
-            style={styles.multiline}
-          />
-          <FormField
-            label="Any surprises in the results?"
-            value={state.reflection.surprises}
-            onChangeText={(surprises) => setReflection({ surprises })}
-            multiline
-            style={styles.multiline}
-          />
-
-          <View style={styles.actions}>
-            <Button
-              title={state.uploadStatus === 'uploading' ? 'Uploading…' : 'Upload results'}
-              onPress={() => void uploadResults()}
-              disabled={
-                state.uploadStatus === 'uploading' ||
-                !allRunsComplete(state.runs) ||
-                !state.reflection.bestDesignWhy.trim() ||
-                !state.reflection.surprises.trim()
-              }
-            />
-            <Button title="Home" variant="secondary" onPress={() => router.back()} />
-          </View>
-
-          {state.uploadStatus === 'success' ? (
-            <Text style={[styles.uploadStatus, styles.uploadSuccess]}>
-              Upload successful — results saved locally too.
-            </Text>
-          ) : null}
-          {state.uploadStatus === 'error' && state.uploadError ? (
-            <Text style={[styles.uploadStatus, styles.uploadError]}>{state.uploadError}</Text>
-          ) : null}
+      {completed > 0 ? (
+        <ActivityCard title="Comparison">
+          <EarthquakeResultsTable runs={state.runs} />
+          <EarthquakeDisplacementChart runs={state.runs} />
+          <EarthquakeSummaryCard runs={state.runs} />
         </ActivityCard>
-      </ScrollView>
+      ) : null}
+
+      <ActivityCard title="Reflection">
+        <FormField
+          label="Which design worked best and why?"
+          value={state.reflection.bestDesignWhy}
+          onChangeText={(bestDesignWhy) => setReflection({ bestDesignWhy })}
+          multiline
+          style={styles.multiline}
+        />
+        <FormField
+          label="Any surprises in the results?"
+          value={state.reflection.surprises}
+          onChangeText={(surprises) => setReflection({ surprises })}
+          multiline
+          style={styles.multiline}
+        />
+
+        <View style={styles.actions}>
+          <Button
+            title={state.uploadStatus === 'uploading' ? 'Uploading…' : 'Upload results'}
+            onPress={() => void uploadResults()}
+            disabled={
+              state.uploadStatus === 'uploading' ||
+              !allRunsComplete(state.runs) ||
+              !state.reflection.bestDesignWhy.trim() ||
+              !state.reflection.surprises.trim()
+            }
+          />
+          <Button title="Home" variant="secondary" onPress={() => router.back()} />
+        </View>
+
+        {state.uploadStatus === 'success' ? (
+          <Text style={[styles.uploadStatus, styles.uploadSuccess]}>
+            Upload successful — results saved locally too.
+          </Text>
+        ) : null}
+        {state.uploadStatus === 'error' && state.uploadError ? (
+          <Text style={[styles.uploadStatus, styles.uploadError]}>{state.uploadError}</Text>
+        ) : null}
+      </ActivityCard>
     </ExperimentScreen>
   );
 }

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { ActivityCard } from '../../components/ActivityCard';
 import { BreathingGroupBarChart } from '../../components/breathing/BreathingGroupBarChart';
 import { BreathingHealthReportCard } from '../../components/breathing/BreathingHealthReportCard';
@@ -424,14 +424,12 @@ export default function BreathingScreen() {
 
   return (
     <ExperimentScreen title="Breathing Pace Trainer">
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
-        <ActivityCard title="Breathing Pace Trainer" live={monitor.running}>
-          {renderPhase()}
-          {state.phase !== 'recording' && state.phase !== 'verifyPeaks' ? (
-            <Button title="Home" variant="secondary" onPress={() => router.back()} />
-          ) : null}
-        </ActivityCard>
-      </ScrollView>
+      <ActivityCard title="Breathing Pace Trainer" live={monitor.running}>
+        {renderPhase()}
+        {state.phase !== 'recording' && state.phase !== 'verifyPeaks' ? (
+          <Button title="Home" variant="secondary" onPress={() => router.back()} />
+        ) : null}
+      </ActivityCard>
     </ExperimentScreen>
   );
 }
