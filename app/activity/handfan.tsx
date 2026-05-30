@@ -200,16 +200,20 @@ export default function HandFanScreen() {
         location,
       );
 
-      await submitHandfanActivity(payload);
-
       const sessionId = await saveActivityResult({
         activityType: 'handfan',
         score: averageActualAngle(state.trials),
         payload: {
           ...payload,
-          apiUploaded: true,
+          apiUploaded: false,
         },
       });
+
+      try {
+        await submitHandfanActivity(payload);
+      } catch (apiErr) {
+        console.warn('[Ocupulse] STEMM handfan upload failed; local save preserved', apiErr);
+      }
 
       setState((s) => ({ ...s, uploadStatus: 'success', uploadError: null }));
       router.push(`/results/${sessionId}`);

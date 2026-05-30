@@ -68,28 +68,20 @@ export function ParachuteSlowMotionReview({
   const { colors } = useAppTheme();
   const clipUri = normalizeClipUri(videoUri);
   const isScrubbingRef = useRef(false);
-  const [displayFrame, setDisplayFrame] = useState(currentFrame);
   const [timelineWidth, setTimelineWidth] = useState(0);
-
-  const handleFrameChange = useCallback(
-    (frame: number) => {
-      setDisplayFrame(frame);
-      onFrameChange(frame);
-    },
-    [onFrameChange],
-  );
-
   const player = useSlowMotionVideoPlayer({
     uri: clipUri,
     fps: SLOW_MO_FPS,
-    onFrameChange: handleFrameChange,
+    onFrameChange,
   });
 
+  const { scrubToFrame, currentFrame: playerFrame, isPlaying } = player;
+
   useEffect(() => {
-    if (!isScrubbingRef.current) {
-      setDisplayFrame(currentFrame);
-    }
-  }, [currentFrame]);
+    if (isScrubbingRef.current || isPlaying) return;
+    if (currentFrame === playerFrame) return;
+    scrubToFrame(currentFrame);
+  }, [currentFrame, playerFrame, isPlaying, scrubToFrame]);
 
   const styles = useThemedStyles((t) => ({
     ...activityScreenStyles(t),
@@ -218,7 +210,7 @@ export function ParachuteSlowMotionReview({
   }));
 
   const maxFrame = player.maxFrame;
-  const clampedFrame = Math.max(0, Math.min(displayFrame, maxFrame));
+  const clampedFrame = Math.max(0, Math.min(player.currentFrame, maxFrame));
 
   const beginScrub = useCallback(() => {
     isScrubbingRef.current = true;

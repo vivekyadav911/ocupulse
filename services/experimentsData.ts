@@ -11,15 +11,31 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { getCurrentUser } from './auth';
-import { deleteSessionAndResult, getAllOutbox, resultsDao } from './db/sqlite';
+import {
+  deleteMediaBySessionId,
+  deleteOutboxByPaths,
+  deleteResultById,
+  deleteSessionAndResult,
+  deleteSessionById,
+  getAllOutbox,
+  resultsDao,
+} from './db/sqlite';
 import { getTeamTeacherId } from './profiles';
 import { activityDisplayName } from '../lib/activities/labels';
 import { formatLeaderboardDisplay } from '../lib/leaderboard/formatLeaderRow';
+import {
+  canDeleteExperiment,
+  deleteExperimentDeniedMessage,
+  shouldIncludeExperimentForStudent,
+  type ExperimentActor,
+} from '../lib/experiments/deleteAuth';
 import { payloadFromUnknown, studentFirstNameFromPayload } from '../lib/scores/stored';
 import type { ActivityType } from '../store/sessionStore';
 import { getFirestoreDb } from './firebase';
 import { notifyExperimentDeleted } from './notifications';
 import type { LeaderboardFilter } from './firestore';
+
+export type { ExperimentActor } from '../lib/experiments/deleteAuth';
 
 export type ExperimentRecord = {
   id: string;
@@ -30,6 +46,7 @@ export type ExperimentRecord = {
   teamName: string;
   studentId?: string;
   studentFirstName?: string;
+  userId?: string;
   payload: Record<string, unknown>;
   synced: boolean;
   scoreLabel?: string;
@@ -56,6 +73,7 @@ export function experimentRecordFromStored(
     teamName,
     studentId: payload.studentId != null ? String(payload.studentId) : undefined,
     studentFirstName: studentFirstNameFromPayload(payload),
+    userId: payload.userId != null ? String(payload.userId) : undefined,
     payload,
     synced,
     scoreLabel: display.scoreText,
@@ -78,7 +96,10 @@ export function mergeExperimentRows(
   return [...byId.values()].sort((a, b) => b.submittedAt - a.submittedAt);
 }
 
-export async function loadStudentExperimentsLocal(userId: string): Promise<ExperimentRecord[]> {
+export async function loadStudentExperimentsLocal(
+  actor: ExperimentActor,
+): Promise<ExperimentRecord[]> {
+  const { userId, isAnonymous } = actor;
   const [results, outbox] = await Promise.all([resultsDao.findAll(), getAllOutbox()]);
 
   const outboxPayloadById = new Map<string, Record<string, unknown>>();
@@ -97,7 +118,6 @@ export async function loadStudentExperimentsLocal(userId: string): Promise<Exper
   const rows: ExperimentRecord[] = [];
   for (const r of results) {
     if (!r.activityType || r.score == null) continue;
-    if (r.userId && r.userId !== userId) continue;
 
     let payload = outboxPayloadById.get(r.id) ?? {};
     if (!Object.keys(payload).length && r.dataJson) {
@@ -109,7 +129,9 @@ export async function loadStudentExperimentsLocal(userId: string): Promise<Exper
     }
 
     const rowUserId = r.userId ?? (payload.userId != null ? String(payload.userId) : null);
-    if (rowUserId && rowUserId !== userId) continue;
+    if (!shouldIncludeExperimentForStudent({ userId, isAnonymous }, rowUserId, payload)) {
+      continue;
+    }
 
     rows.push(
       experimentRecordFromStored(r.id, r.activityType, r.score, payload, !pendingIds.has(r.id)),
@@ -118,33 +140,101 @@ export async function loadStudentExperimentsLocal(userId: string): Promise<Exper
   return rows;
 }
 
+function mapFirestoreDocs(docs: { id: string; data: () => unknown }[]): ExperimentRecord[] {
+  return docs.map((d) => {
+    const x = payloadFromUnknown(d.data());
+    const activityType = String(x.activityType ?? '');
+    const score = Number(x.score ?? 0);
+    return experimentRecordFromStored(d.id, activityType, score, x, true);
+  });
+}
+
 function subscribeFirestoreStudentExperiments(
-  userId: string,
+  actor: ExperimentActor,
+  studentId: string | null,
   onRows: (rows: ExperimentRecord[]) => void,
 ): Unsubscribe {
   const db = getFirestoreDb();
   if (!db) {
-    onRows([]);
     return () => {};
   }
-  const q = query(
-    collection(db, 'scores'),
-    where('userId', '==', userId),
-    orderBy('updatedAt', 'desc'),
+
+  const { userId, isAnonymous } = actor;
+  let ownRows: ExperimentRecord[] = [];
+  let anonymousRows: ExperimentRecord[] = [];
+  let usingStudentFallback = false;
+  let usingAnonymousFallback = false;
+  const unsubs: Unsubscribe[] = [];
+
+  const publish = () => {
+    const merged = mergeExperimentRows(anonymousRows, ownRows);
+    onRows(
+      merged.filter((row) =>
+        shouldIncludeExperimentForStudent(actor, row.userId ?? null, row.payload),
+      ),
+    );
+  };
+
+  const attach = (
+    q: ReturnType<typeof query>,
+    assign: (rows: ExperimentRecord[]) => void,
+    options: { allowStudentFallback?: boolean; allowUnorderedFallback?: boolean } = {},
+  ) => {
+    const { allowStudentFallback = false, allowUnorderedFallback = false } = options;
+    return onSnapshot(
+      q,
+      (snap) => {
+        assign(mapFirestoreDocs(snap.docs));
+        publish();
+      },
+      (err) => {
+        console.warn('[Ocupulse] experiments Firestore query failed', err);
+        if (allowUnorderedFallback && !usingAnonymousFallback) {
+          usingAnonymousFallback = true;
+          const fallbackQ = query(collection(db, 'scores'), where('authAnonymous', '==', true));
+          unsubs.push(attach(fallbackQ, assign, {}));
+          return;
+        }
+        if (allowStudentFallback && !usingStudentFallback && studentId) {
+          usingStudentFallback = true;
+          const fallbackQ = query(
+            collection(db, 'scores'),
+            where('studentId', '==', studentId),
+            orderBy('updatedAt', 'desc'),
+          );
+          unsubs.push(attach(fallbackQ, assign, {}));
+        }
+      },
+    );
+  };
+
+  unsubs.push(
+    attach(
+      query(collection(db, 'scores'), where('userId', '==', userId), orderBy('updatedAt', 'desc')),
+      (rows) => {
+        ownRows = rows;
+      },
+      { allowStudentFallback: true },
+    ),
   );
-  return onSnapshot(
-    q,
-    (snap) => {
-      const rows = snap.docs.map((d) => {
-        const x = payloadFromUnknown(d.data());
-        const activityType = String(x.activityType ?? '');
-        const score = Number(x.score ?? 0);
-        return experimentRecordFromStored(d.id, activityType, score, x, true);
-      });
-      onRows(rows);
-    },
-    () => onRows([]),
+
+  unsubs.push(
+    attach(
+      query(
+        collection(db, 'scores'),
+        where('authAnonymous', '==', true),
+        orderBy('updatedAt', 'desc'),
+      ),
+      (rows) => {
+        anonymousRows = rows;
+      },
+      { allowUnorderedFallback: true },
+    ),
   );
+
+  return () => {
+    for (const unsub of unsubs) unsub();
+  };
 }
 
 export type ExperimentsSubscription = {
@@ -153,7 +243,8 @@ export type ExperimentsSubscription = {
 };
 
 export function subscribeStudentExperiments(
-  userId: string,
+  actor: ExperimentActor,
+  studentId: string | null,
   onRows: (rows: ExperimentRecord[]) => void,
 ): ExperimentsSubscription {
   let localRows: ExperimentRecord[] = [];
@@ -164,14 +255,14 @@ export function subscribeStudentExperiments(
   };
 
   const refreshLocal = () => {
-    void loadStudentExperimentsLocal(userId).then((rows) => {
+    void loadStudentExperimentsLocal(actor).then((rows) => {
       localRows = rows;
       publish();
     });
   };
 
   refreshLocal();
-  const unsubRemote = subscribeFirestoreStudentExperiments(userId, (rows) => {
+  const unsubRemote = subscribeFirestoreStudentExperiments(actor, studentId, (rows) => {
     remoteRows = rows;
     publish();
   });
@@ -245,12 +336,7 @@ export function subscribeTeamExperiments(
   const unsubRemote = onSnapshot(
     q,
     (snap) => {
-      remoteRows = snap.docs.map((d) => {
-        const x = payloadFromUnknown(d.data());
-        const activityType = String(x.activityType ?? '');
-        const score = Number(x.score ?? 0);
-        return experimentRecordFromStored(d.id, activityType, score, x, true);
-      });
+      remoteRows = mapFirestoreDocs(snap.docs);
       publish();
     },
     () => {
@@ -353,6 +439,35 @@ export async function createTeacherExperiment(input: {
   });
 }
 
+function resolveRecordUserId(
+  row: Awaited<ReturnType<typeof resultsDao.findById>>,
+  payload: Record<string, unknown>,
+): string | null {
+  if (row?.userId) return row.userId;
+  if (payload.userId != null) return String(payload.userId);
+  return null;
+}
+
+async function deleteExperimentLocal(sessionId: string): Promise<void> {
+  await deleteResultById(sessionId);
+  await deleteSessionById(sessionId);
+  await deleteMediaBySessionId(sessionId);
+  await deleteOutboxByPaths([`scores/${sessionId}`, `sessions/${sessionId}`]);
+}
+
+async function deleteExperimentRemote(sessionId: string): Promise<void> {
+  const db = getFirestoreDb();
+  if (!db) return;
+  try {
+    await Promise.all([
+      deleteDoc(doc(db, 'scores', sessionId)),
+      deleteDoc(doc(db, 'sessions', sessionId)),
+    ]);
+  } catch (e) {
+    console.warn('[Ocupulse] remote experiment delete failed', e);
+  }
+}
+
 export async function getExperimentRecord(sessionId: string): Promise<ExperimentRecord | null> {
   const local = await resultsDao.findById(sessionId);
   if (local?.activityType && local.score != null) {
@@ -377,4 +492,44 @@ export async function getExperimentRecord(sessionId: string): Promise<Experiment
   const activityType = String(x.activityType ?? '');
   const score = Number(x.score ?? 0);
   return experimentRecordFromStored(snap.id, activityType, score, x, true);
+}
+
+export async function deleteExperiment(sessionId: string, actor: ExperimentActor): Promise<void> {
+  const local = await resultsDao.findById(sessionId);
+  let payload: Record<string, unknown> = {};
+  if (local?.dataJson) {
+    try {
+      payload = payloadFromUnknown(JSON.parse(local.dataJson));
+    } catch {
+      payload = {};
+    }
+  }
+
+  const ownerId = resolveRecordUserId(local, payload);
+
+  if (!local) {
+    const remote = await getExperimentRecord(sessionId);
+    if (remote) {
+      payload = remote.payload;
+    }
+  }
+
+  const ownerIdFinal = ownerId ?? (payload.userId != null ? String(payload.userId) : null);
+
+  if (!canDeleteExperiment(actor, ownerIdFinal, payload)) {
+    throw new Error(deleteExperimentDeniedMessage(actor, payload, ownerIdFinal));
+  }
+
+  await deleteExperimentLocal(sessionId);
+  await deleteExperimentRemote(sessionId);
+}
+
+export async function deleteAllExperiments(actor: ExperimentActor): Promise<void> {
+  const localRows = await loadStudentExperimentsLocal(actor);
+  for (const row of localRows) {
+    const ownerId = row.userId ?? (row.payload.userId != null ? String(row.payload.userId) : null);
+    if (!canDeleteExperiment(actor, ownerId, row.payload)) continue;
+    await deleteExperimentLocal(row.sessionId);
+    await deleteExperimentRemote(row.sessionId);
+  }
 }

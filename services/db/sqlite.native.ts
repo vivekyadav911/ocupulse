@@ -85,4 +85,8 @@ export const {
   deleteOutboxForPath,
   markResultSynced,
   deleteSessionAndResult,
+  deleteResultById,
+  deleteSessionById,
+  deleteMediaBySessionId,
+  deleteOutboxByPaths,
 } = api;

@@ -1,16 +1,18 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { experimentsScopeFromParam, type ExperimentsScope } from '../../lib/experiments/scope';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, Text, View } from 'react-native';
 import { ACTIVITY_LABELS, activityDisplayName } from '../../lib/activities/labels';
 import { Badge } from '../../components/Badge';
+import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { ExperimentSwipeRow } from '../../components/experiments/ExperimentSwipeRow';
 import { PageTitle } from '../../components/PageTitle';
 import { ScreenShell } from '../../components/ScreenShell';
-import { getCurrentUser } from '../../services/auth';
-import { Button } from '../../components/Button';
 import {
   createTeacherExperiment,
+  deleteAllExperiments,
+  deleteExperiment,
   deleteExperimentRecord,
   subscribeStudentExperiments,
   subscribeTeamExperiments,
@@ -19,6 +21,7 @@ import {
 import type { LeaderboardFilter } from '../../services/firestore';
 import type { ActivityType } from '../../store/sessionStore';
 import { syncOutbox } from '../../services/firestore';
+import { useAuthStore } from '../../store/authStore';
 import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
@@ -28,6 +31,9 @@ export default function ExperimentsDataListScreen() {
   const role = useSessionStore((s) => s.role);
   const activeTeamId = useSessionStore((s) => s.activeTeamId);
   const teamName = useSessionStore((s) => s.teamName);
+  const studentId = useSessionStore((s) => s.studentId);
+  const authUser = useAuthStore((s) => s.user);
+  const profileHydrated = useAuthStore((s) => s.profileHydrated);
   const isTeacher = role === 'teacher';
   const scope: ExperimentsScope = isTeacher ? experimentsScopeFromParam(params.scope) : 'personal';
   const teamMode = isTeacher && scope === 'team';
@@ -35,6 +41,7 @@ export default function ExperimentsDataListScreen() {
     params.activity && params.activity !== 'all' ? (params.activity as LeaderboardFilter) : 'all';
   const [rows, setRows] = useState<ExperimentRecord[]>([]);
   const [filter, setFilter] = useState<LeaderboardFilter>(initialFilter);
+  const [deletingAll, setDeletingAll] = useState(false);
   const studentSubRef = useRef<ReturnType<typeof subscribeStudentExperiments> | null>(null);
   const teamSubRef = useRef<ReturnType<typeof subscribeTeamExperiments> | null>(null);
 
@@ -62,7 +69,7 @@ export default function ExperimentsDataListScreen() {
     },
     rowTitle: { fontWeight: '700', color: t.colors.text, fontSize: t.typography.body },
     rowMeta: { color: t.colors.muted, fontSize: t.typography.caption, marginTop: 2 },
-    empty: { color: t.colors.muted, fontStyle: 'italic' as const },
+    empty: { color: t.colors.muted, fontStyle: 'italic' as const, padding: t.spacing.md },
     badgeRow: { flexDirection: 'row' as const, gap: t.spacing.xs, marginTop: t.spacing.xs },
   }));
 
@@ -95,19 +102,32 @@ export default function ExperimentsDataListScreen() {
       };
     }
 
-    const user = getCurrentUser();
-    if (!user) {
+    if (!profileHydrated || !authUser?.uid) {
       setRows([]);
       return;
     }
-    const sub = subscribeStudentExperiments(user.uid, setRows);
+
+    const actor = {
+      userId: authUser.uid,
+      isAnonymous: authUser.isAnonymous,
+      email: authUser.email ?? null,
+    };
+    const sub = subscribeStudentExperiments(actor, studentId, setRows);
     studentSubRef.current = sub;
     teamSubRef.current = null;
     return () => {
       sub.unsubscribe();
       studentSubRef.current = null;
     };
-  }, [teamMode, activeTeamId, filter]);
+  }, [
+    teamMode,
+    activeTeamId,
+    filter,
+    authUser?.uid,
+    authUser?.isAnonymous,
+    profileHydrated,
+    studentId,
+  ]);
 
   const addSample = () => {
     if (!activeTeamId) {
@@ -143,6 +163,54 @@ export default function ExperimentsDataListScreen() {
 
   const filteredRows = filter === 'all' ? rows : rows.filter((r) => r.activityType === filter);
 
+  const experimentActor =
+    authUser?.uid != null
+      ? {
+          userId: authUser.uid,
+          isAnonymous: authUser.isAnonymous,
+          email: authUser.email ?? null,
+        }
+      : null;
+
+  const handleDelete = async (sessionId: string) => {
+    if (!experimentActor) return;
+    try {
+      await deleteExperiment(sessionId, experimentActor);
+      studentSubRef.current?.refresh();
+    } catch (e) {
+      Alert.alert('Delete failed', e instanceof Error ? e.message : 'Could not delete experiment.');
+    }
+  };
+
+  const confirmDeleteAll = () => {
+    if (!experimentActor || filteredRows.length === 0) return;
+    Alert.alert(
+      'Delete all experiments',
+      experimentActor.isAnonymous
+        ? 'This permanently removes all anonymous experiments you can access from this device and the cloud. This cannot be undone.'
+        : 'This permanently removes all your saved experiments from this device and the cloud. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete all',
+          style: 'destructive',
+          onPress: () => {
+            setDeletingAll(true);
+            void deleteAllExperiments(experimentActor)
+              .then(() => studentSubRef.current?.refresh())
+              .catch((e) => {
+                Alert.alert(
+                  'Delete failed',
+                  e instanceof Error ? e.message : 'Could not delete all experiments.',
+                );
+              })
+              .finally(() => setDeletingAll(false));
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ScreenShell>
       <PageTitle
@@ -153,8 +221,8 @@ export default function ExperimentsDataListScreen() {
         {teamMode
           ? 'Student submissions and records for your active team. Long-press to delete.'
           : isTeacher
-            ? 'Your personal practice runs (same as student quick join). Tap to view or export.'
-            : 'Your saved experiment results sync to the cloud when online. Tap to view or share.'}
+            ? 'Your personal practice runs. Swipe right to delete, swipe left to share.'
+            : 'Swipe right to delete, swipe left to share as text or PDF. Data syncs to the cloud when online.'}
       </Text>
 
       <View style={styles.chips}>
@@ -185,7 +253,7 @@ export default function ExperimentsDataListScreen() {
               ? 'No team experiments yet. Students submit from activities, or add a record above.'
               : 'No saved experiments yet. Complete an activity to see data here.'}
           </Text>
-        ) : (
+        ) : teamMode ? (
           filteredRows.map((row) => (
             <Pressable
               key={row.id}
@@ -193,16 +261,16 @@ export default function ExperimentsDataListScreen() {
               onPress={() =>
                 router.push({
                   pathname: `/experiments-data/${row.sessionId}`,
-                  params: teamMode ? { scope: 'team' } : { scope: 'personal' },
+                  params: { scope: 'team' },
                 })
               }
-              onLongPress={teamMode ? () => confirmDelete(row) : undefined}
+              onLongPress={() => confirmDelete(row)}
             >
               <Text style={styles.rowTitle}>
                 {activityDisplayName(row.activityType)} · {row.scoreLabel ?? row.score}
               </Text>
               <Text style={styles.rowMeta}>
-                {teamMode && row.studentFirstName ? `${row.studentFirstName} · ` : ''}
+                {row.studentFirstName ? `${row.studentFirstName} · ` : ''}
                 {row.teamName} ·{' '}
                 {row.submittedAt ? new Date(row.submittedAt).toLocaleString() : '—'}
               </Text>
@@ -213,8 +281,37 @@ export default function ExperimentsDataListScreen() {
               ) : null}
             </Pressable>
           ))
+        ) : (
+          <FlatList
+            data={filteredRows}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+            renderItem={({ item }) => (
+              <ExperimentSwipeRow
+                row={item}
+                isTeacher={isTeacher}
+                onPress={() =>
+                  router.push({
+                    pathname: `/experiments-data/${item.sessionId}`,
+                    params: { scope: 'personal' },
+                  })
+                }
+                onDelete={(sessionId) => void handleDelete(sessionId)}
+              />
+            )}
+          />
         )}
       </Card>
+
+      {!isTeacher ? (
+        <Button
+          title={deletingAll ? 'Deleting…' : 'Delete all experiments'}
+          variant="secondary"
+          icon="trash-outline"
+          disabled={deletingAll || filteredRows.length === 0}
+          onPress={confirmDeleteAll}
+        />
+      ) : null}
     </ScreenShell>
   );
 }

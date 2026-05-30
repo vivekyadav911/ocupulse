@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Accelerometer } from 'expo-sensors';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import type { AccelSample } from '../lib/calc/earthquakeDisplacement';
 import { SAMPLE_HZ } from '../lib/calc/earthquakeDisplacement';
 import {
@@ -11,31 +12,35 @@ import {
 export const HAPTIC_ON_MS = 200;
 export const HAPTIC_OFF_MS = 100;
 const HAPTIC_PULSE_MS = 50;
-const TICK_MS = 100;
+const TICK_MS = 250;
 const SAMPLE_INTERVAL_MS = 1000 / SAMPLE_HZ;
 
-export type EarthquakeTestPhase = 'idle' | 'running' | 'done';
+export type EarthquakeTestPhase = 'idle' | 'running';
 
-export function useEarthquakeTest() {
+export type EarthquakeTestCompleteHandler = (samples: readonly AccelSample[]) => void;
+
+export function useEarthquakeTest(onComplete?: EarthquakeTestCompleteHandler) {
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   const [phase, setPhase] = useState<EarthquakeTestPhase>('idle');
   const [secsLeft, setSecsLeft] = useState(DEFAULT_TEST_DURATION_SEC);
-  const [progress, setProgress] = useState(1);
-  const [sampleCount, setSampleCount] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [activeDurationSec, setActiveDurationSec] =
     useState<EarthquakeTestDurationSec>(DEFAULT_TEST_DURATION_SEC);
 
   const samplesRef = useRef<AccelSample[]>([]);
   const recordingRef = useRef(false);
+  const finishedRef = useRef(false);
   const durationMsRef = useRef(DEFAULT_TEST_DURATION_SEC * 1000);
   const endAtRef = useRef(0);
-  const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hapticCycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hapticPulseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimers = useCallback(() => {
     if (tickTimerRef.current) {
-      clearInterval(tickTimerRef.current);
+      clearTimeout(tickTimerRef.current);
       tickTimerRef.current = null;
     }
     if (hapticCycleTimerRef.current) {
@@ -46,25 +51,6 @@ export function useEarthquakeTest() {
       clearInterval(hapticPulseTimerRef.current);
       hapticPulseTimerRef.current = null;
     }
-    if (finishTimerRef.current) {
-      clearTimeout(finishTimerRef.current);
-      finishTimerRef.current = null;
-    }
-  }, []);
-
-  const finishTest = useCallback(() => {
-    recordingRef.current = false;
-    clearTimers();
-    setPhase('done');
-    setSecsLeft(0);
-    setProgress(0);
-  }, [clearTimers]);
-
-  const startHapticOnWindow = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    hapticPulseTimerRef.current = setInterval(() => {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }, HAPTIC_PULSE_MS);
   }, []);
 
   const stopHapticOnWindow = useCallback(() => {
@@ -72,6 +58,13 @@ export function useEarthquakeTest() {
       clearInterval(hapticPulseTimerRef.current);
       hapticPulseTimerRef.current = null;
     }
+  }, []);
+
+  const startHapticOnWindow = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    hapticPulseTimerRef.current = setInterval(() => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }, HAPTIC_PULSE_MS);
   }, []);
 
   const scheduleHapticCycle = useCallback(
@@ -93,15 +86,54 @@ export function useEarthquakeTest() {
     [startHapticOnWindow, stopHapticOnWindow],
   );
 
+  const syncTick = useCallback(() => {
+    if (!recordingRef.current || finishedRef.current) return;
+
+    const remaining = Math.max(0, endAtRef.current - Date.now());
+    const durationMs = durationMsRef.current;
+    const secs = Math.max(0, Math.ceil(remaining / 1000));
+
+    setSecsLeft(secs);
+    setProgress(durationMs > 0 ? 1 - remaining / durationMs : 1);
+
+    if (remaining <= 0) {
+      finishedRef.current = true;
+      recordingRef.current = false;
+      clearTimers();
+      stopHapticOnWindow();
+
+      const samples = samplesRef.current.slice();
+      samplesRef.current = [];
+      const durationSec = Math.max(1, Math.round(durationMs / 1000)) as EarthquakeTestDurationSec;
+
+      setPhase('idle');
+      setSecsLeft(durationSec);
+      setProgress(0);
+      onCompleteRef.current?.(samples);
+      return;
+    }
+
+    tickTimerRef.current = setTimeout(syncTick, TICK_MS);
+  }, [clearTimers, stopHapticOnWindow]);
+
   useEffect(() => {
     Accelerometer.setUpdateInterval(SAMPLE_INTERVAL_MS);
     const sub = Accelerometer.addListener(({ x, y, z }) => {
       if (!recordingRef.current) return;
       samplesRef.current.push({ x, y, z, t: Date.now() });
-      setSampleCount(samplesRef.current.length);
     });
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    const onAppState = (next: AppStateStatus) => {
+      if (next === 'active' && recordingRef.current && !finishedRef.current) {
+        syncTick();
+      }
+    };
+    const sub = AppState.addEventListener('change', onAppState);
+    return () => sub.remove();
+  }, [syncTick]);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
@@ -112,54 +144,53 @@ export function useEarthquakeTest() {
       setActiveDurationSec(durationSec);
 
       clearTimers();
+      stopHapticOnWindow();
       samplesRef.current = [];
-      setSampleCount(0);
+      finishedRef.current = false;
       recordingRef.current = true;
       endAtRef.current = Date.now() + testMs;
+
       setPhase('running');
       setSecsLeft(durationSec);
-      setProgress(1);
+      setProgress(0);
 
       scheduleHapticCycle(true);
-
-      tickTimerRef.current = setInterval(() => {
-        const remaining = Math.max(0, endAtRef.current - Date.now());
-        setSecsLeft(Math.ceil(remaining / 1000));
-        setProgress(remaining / durationMsRef.current);
-        if (remaining <= 0) {
-          finishTest();
-        }
-      }, TICK_MS);
-
-      finishTimerRef.current = setTimeout(finishTest, testMs);
+      syncTick();
     },
-    [clearTimers, finishTest, scheduleHapticCycle],
+    [clearTimers, scheduleHapticCycle, stopHapticOnWindow, syncTick],
   );
 
   const cancelTest = useCallback(() => {
-    finishTest();
-  }, [finishTest]);
+    if (!recordingRef.current) return;
+    finishedRef.current = true;
+    recordingRef.current = false;
+    clearTimers();
+    stopHapticOnWindow();
+    samplesRef.current = [];
+    setPhase('idle');
+    setProgress(0);
+  }, [clearTimers, stopHapticOnWindow]);
 
   const resetTest = useCallback(
     (durationSec: EarthquakeTestDurationSec = DEFAULT_TEST_DURATION_SEC) => {
       clearTimers();
+      stopHapticOnWindow();
       recordingRef.current = false;
+      finishedRef.current = false;
       samplesRef.current = [];
-      setSampleCount(0);
       durationMsRef.current = durationSec * 1000;
       setActiveDurationSec(durationSec);
       setPhase('idle');
       setSecsLeft(durationSec);
-      setProgress(1);
+      setProgress(0);
     },
-    [clearTimers],
+    [clearTimers, stopHapticOnWindow],
   );
 
   return {
     phase,
     secsLeft,
     progress,
-    sampleCount,
     activeDurationSec,
     samplesRef,
     startTest,

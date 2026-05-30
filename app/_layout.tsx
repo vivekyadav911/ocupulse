@@ -1,4 +1,4 @@
-import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { registerBackgroundSync } from '../services/tasks';
 
 import NetInfo from '@react-native-community/netinfo';
@@ -53,7 +53,6 @@ export default function RootLayout() {
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       }
       await runMigrations();
-      await clearStaleOutboxRows();
       setDbReady(true);
       await registerBackgroundSync();
       await ensureNotificationPermissions();
@@ -62,8 +61,9 @@ export default function RootLayout() {
       unsubAuth = onAuthChange((u) => {
         setUser(u);
         if (u) {
-          void applyProfileForUser(u.uid).then(() => {
-            void syncAll();
+          void applyProfileForUser(u.uid).then(async () => {
+            await clearStaleOutboxRows();
+            await syncAll();
           });
         } else {
           useSessionStore.getState().resetProfile();
@@ -102,12 +102,14 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <SessionActivityGuard>
-          <Slot />
-        </SessionActivityGuard>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <SessionActivityGuard>
+            <Slot />
+          </SessionActivityGuard>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

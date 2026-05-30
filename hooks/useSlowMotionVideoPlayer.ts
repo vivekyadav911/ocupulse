@@ -25,6 +25,7 @@ export function useSlowMotionVideoPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [totalFrames, setTotalFrames] = useState(0);
+  const [currentFrame, setCurrentFrame] = useState(0);
 
   const isScrubbingRef = useRef(false);
   const maxFrameRef = useRef(0);
@@ -68,12 +69,19 @@ export function useSlowMotionVideoPlayer({
     await seekVideoToFrame(frame);
   }, [seekVideoToFrame]);
 
+  const updateFrame = useCallback((frame: number, notifyParent: boolean) => {
+    const clamped = Math.max(0, Math.min(frame, maxFrameRef.current));
+    if (clamped === lastFrameRef.current) return;
+    lastFrameRef.current = clamped;
+    setCurrentFrame(clamped);
+    if (notifyParent) onFrameChangeRef.current(clamped);
+  }, []);
+
   const scheduleSeek = useCallback(
     (frame: number, immediate = false) => {
       const clamped = Math.max(0, Math.min(frame, maxFrameRef.current));
       pendingSeekFrameRef.current = clamped;
-      lastFrameRef.current = clamped;
-      onFrameChangeRef.current(clamped);
+      updateFrame(clamped, immediate);
 
       if (seekTimerRef.current) {
         clearTimeout(seekTimerRef.current);
@@ -93,7 +101,7 @@ export function useSlowMotionVideoPlayer({
         void flushSeek();
       }, delay);
     },
-    [flushSeek],
+    [flushSeek, updateFrame],
   );
 
   const onPlaybackStatus = useCallback(
@@ -116,11 +124,7 @@ export function useSlowMotionVideoPlayer({
 
       if (playing && !isScrubbingRef.current) {
         const frame = Math.round((status.positionMillis ?? 0) / (frameSec * 1000));
-        const clamped = Math.max(0, Math.min(frame, maxFrameRef.current));
-        if (clamped !== lastFrameRef.current) {
-          lastFrameRef.current = clamped;
-          onFrameChangeRef.current(clamped);
-        }
+        updateFrame(frame, false);
       }
 
       if (status.didJustFinish && isPlayingRef.current) {
@@ -128,13 +132,16 @@ export function useSlowMotionVideoPlayer({
         setIsPlaying(false);
       }
     },
-    [applyDuration, frameSec],
+    [applyDuration, frameSec, updateFrame],
   );
 
   const pause = useCallback(async () => {
     if (isPlayingRef.current) {
       isPlayingRef.current = false;
       setIsPlaying(false);
+      if (lastFrameRef.current >= 0) {
+        onFrameChangeRef.current(lastFrameRef.current);
+      }
     }
     await safePause(videoRef.current);
   }, []);
@@ -190,6 +197,7 @@ export function useSlowMotionVideoPlayer({
     setIsPlaying(false);
     setDurationMs(0);
     setTotalFrames(0);
+    setCurrentFrame(0);
     pendingSeekFrameRef.current = null;
     lastSeekAtRef.current = 0;
   }, [uri]);
@@ -207,6 +215,7 @@ export function useSlowMotionVideoPlayer({
     durationMs,
     totalFrames,
     maxFrame,
+    currentFrame,
     onPlaybackStatus,
     togglePlayPause,
     beginScrub,

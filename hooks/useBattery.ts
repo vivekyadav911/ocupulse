@@ -162,7 +162,7 @@ export function useBatteryLevel(): BatteryLevelState {
     };
   }, [refresh]);
 
-  const level = snapshot.rawLevel < 0 ? 0 : snapshot.rawLevel;
+  const level = snapshot.rawLevel < 0 ? 1 : snapshot.rawLevel;
 
   return {
     ...snapshot,
@@ -171,15 +171,21 @@ export function useBatteryLevel(): BatteryLevelState {
   };
 }
 
+function knownBatteryLevel(bat: BatterySnapshot): number | null {
+  if (bat.percent != null) return bat.percent / 100;
+  if (bat.rawLevel >= 0) return bat.rawLevel;
+  return null;
+}
+
 /** Battery state for banners and recording gate (Issue #35). */
 export function useBattery() {
   const bat = useBatteryLevel();
-  const normalized = bat.percent != null ? bat.percent / 100 : bat.level;
-  const warn = normalized < WARN_THRESHOLD;
-  const critical = normalized < CRITICAL_THRESHOLD;
+  const normalized = knownBatteryLevel(bat);
+  const warn = normalized != null && normalized < WARN_THRESHOLD;
+  const critical = normalized != null && normalized < CRITICAL_THRESHOLD;
   return {
     ...bat,
-    level: normalized,
+    level: normalized ?? 1,
     warn,
     critical,
     recordingDisabled: critical,

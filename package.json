@@ -14,6 +14,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "rebuild:native": "npm rebuild better-sqlite3",
     "test": "jest",
+    "test:coverage": "jest --coverage",
     "a11y": "node scripts/lint-a11y.cjs",
     "secret-scan": "node scripts/secret-scan.cjs",
     "firebase:setup": "node scripts/setup-firebase-env.cjs",

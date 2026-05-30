@@ -1,6 +1,8 @@
 /** Minimal in-memory SQL shim for Expo web (avoids expo-sqlite WASM). */
 type Row = Record<string, unknown>;
 
+const STORAGE_KEY = 'ocupulse_web_db_v1';
+
 const tables: Record<string, Row[]> = {
   schema_migrations: [],
   teams: [],
@@ -12,6 +14,39 @@ const tables: Record<string, Row[]> = {
 };
 
 let outboxSeq = 1;
+let hydrated = false;
+
+function persistTables(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tables, outboxSeq }));
+  } catch (e) {
+    console.warn('[Ocupulse] web DB persist failed', e);
+  }
+}
+
+function hydrateTables(): void {
+  if (hydrated) return;
+  hydrated = true;
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { tables?: Record<string, Row[]>; outboxSeq?: number };
+    if (parsed.tables) {
+      for (const key of Object.keys(tables)) {
+        if (Array.isArray(parsed.tables[key])) {
+          tables[key] = parsed.tables[key];
+        }
+      }
+    }
+    if (typeof parsed.outboxSeq === 'number') {
+      outboxSeq = parsed.outboxSeq;
+    }
+  } catch (e) {
+    console.warn('[Ocupulse] web DB hydrate failed', e);
+  }
+}
 
 function tableNameFromSql(sql: string): string | null {
   const m =
@@ -20,17 +55,28 @@ function tableNameFromSql(sql: string): string | null {
   return m?.[1] ?? null;
 }
 
+function deleteRow(table: string, idCol: string, id: unknown): void {
+  if (!tables[table]) return;
+  tables[table] = tables[table].filter((r) => r[idCol] !== id);
+}
+
 export class WebMemoryDatabase {
+  constructor() {
+    hydrateTables();
+  }
+
   async execAsync(_sql: string): Promise<void> {
     /* schema created eagerly */
   }
 
   async runAsync(sql: string, params: unknown[] = []): Promise<void> {
+    hydrateTables();
     const table = tableNameFromSql(sql);
     if (!table) return;
 
     if (sql.includes('INSERT INTO schema_migrations')) {
       tables.schema_migrations.push({ version: params[0], applied_at: params[1] });
+      persistTables();
       return;
     }
 
@@ -47,6 +93,7 @@ export class WebMemoryDatabase {
       }
       if (!tables[table]) tables[table] = [];
       tables[table].push(row);
+      persistTables();
       return;
     }
 
@@ -63,12 +110,40 @@ export class WebMemoryDatabase {
         const col = assignment.split('=')[0]?.trim();
         if (col) tables[table][idx][col] = params[i];
       });
+      persistTables();
       return;
     }
 
     if (sql.startsWith('DELETE FROM outbox WHERE id IN')) {
       const ids = new Set(params);
       tables.outbox = tables.outbox.filter((r) => !ids.has(r.id));
+      persistTables();
+      return;
+    }
+
+    if (sql.startsWith('DELETE FROM outbox WHERE path =')) {
+      const path = params[0];
+      tables.outbox = tables.outbox.filter((r) => r.path !== path);
+      persistTables();
+      return;
+    }
+
+    if (sql.startsWith('DELETE FROM experiment_results WHERE id =')) {
+      deleteRow('experiment_results', 'id', params[0]);
+      persistTables();
+      return;
+    }
+
+    if (sql.startsWith('DELETE FROM sessions WHERE id =')) {
+      deleteRow('sessions', 'id', params[0]);
+      persistTables();
+      return;
+    }
+
+    if (sql.startsWith('DELETE FROM media_assets WHERE session_id =')) {
+      deleteRow('media_assets', 'session_id', params[0]);
+      persistTables();
+      return;
     }
   }
 
@@ -78,6 +153,7 @@ export class WebMemoryDatabase {
   }
 
   async getAllAsync<T extends Row>(sql: string, params: unknown[] = []): Promise<T[]> {
+    hydrateTables();
     const table = tableNameFromSql(sql);
     if (!table || !tables[table]) return [];
     if (sql.includes('WHERE')) {
@@ -97,4 +173,8 @@ export function resetWebMemoryTables(): void {
     tables[key] = [];
   }
   outboxSeq = 1;
+  hydrated = true;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(STORAGE_KEY);
+  }
 }

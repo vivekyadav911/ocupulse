@@ -1,5 +1,8 @@
 import { Text, View } from 'react-native';
-import type { EarthquakeTestDurationSec } from '../../lib/earthquake/sessionState';
+import type {
+  EarthquakeDesign,
+  EarthquakeTestDurationSec,
+} from '../../lib/earthquake/sessionState';
 import { Button } from '../Button';
 import { EarthquakeDurationPicker } from './EarthquakeDurationPicker';
 import { useThemedStyles } from '../../theme/themedStyles';
@@ -9,28 +12,42 @@ type EarthquakeSimulatorPanelProps = {
   secsLeft: number;
   progress: number;
   testDurationSec: EarthquakeTestDurationSec;
+  activeDesign: EarthquakeDesign;
   onDurationChange: (sec: EarthquakeTestDurationSec) => void;
   onStart: () => void;
   disabled?: boolean;
 };
+
+function buttonTitle(phase: EarthquakeSimulatorPanelProps['phase'], secsLeft: number): string {
+  if (phase === 'running') {
+    return secsLeft <= 1 ? 'Finishing…' : `Earthquake — ${secsLeft}s`;
+  }
+  if (phase === 'done') {
+    return 'Run again';
+  }
+  return 'Start Earthquake';
+}
 
 export function EarthquakeSimulatorPanel({
   phase,
   secsLeft,
   progress,
   testDurationSec,
+  activeDesign,
   onDurationChange,
   onStart,
   disabled,
 }: EarthquakeSimulatorPanelProps) {
-  const pct = Math.max(0, Math.min(100, progress * 100));
+  // iOS accessibility requires integer progress values (floats crash HostFunction).
+  const pct = Math.round(Math.max(0, Math.min(100, progress * 100)));
   const styles = useThemedStyles((t) => ({
-    countdown: {
-      fontSize: t.typography.subtitle,
-      fontWeight: '800' as const,
+    designStep: {
+      fontSize: t.typography.caption,
+      fontWeight: '700' as const,
       color: t.colors.accent,
       marginBottom: t.spacing.sm,
-      fontFamily: 'monospace',
+      textTransform: 'uppercase' as const,
+      letterSpacing: 0.6,
     },
     track: {
       height: 10,
@@ -52,10 +69,18 @@ export function EarthquakeSimulatorPanel({
       marginBottom: t.spacing.md,
       lineHeight: 18,
     },
+    doneHint: {
+      fontSize: t.typography.caption,
+      color: t.colors.success,
+      marginBottom: t.spacing.sm,
+      fontWeight: '600' as const,
+    },
   }));
 
   return (
     <View>
+      <Text style={styles.designStep}>Design {activeDesign} of 3</Text>
+
       <Text style={styles.hint}>
         Place the phone on your model. The vibration pattern runs while the accelerometer records
         movement.
@@ -67,18 +92,25 @@ export function EarthquakeSimulatorPanel({
         disabled={disabled || phase === 'running'}
       />
 
-      {phase !== 'idle' ? (
-        <Text style={styles.countdown} accessibilityLiveRegion="polite">
-          {phase === 'running' ? `${secsLeft}s remaining` : 'Test complete'}
+      {phase === 'done' ? (
+        <Text style={styles.doneHint}>
+          Test complete — review results below, then continue with the next design.
         </Text>
       ) : null}
-      <View style={styles.track} accessibilityRole="progressbar">
+
+      <View
+        style={styles.track}
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 0, max: 100, now: pct }}
+      >
         <View style={[styles.fill, { width: `${pct}%` }]} />
       </View>
+
       <Button
-        title={phase === 'running' ? 'Earthquake in progress…' : 'Start Earthquake'}
+        title={buttonTitle(phase, secsLeft)}
         onPress={onStart}
         disabled={phase === 'running' || disabled}
+        accessibilityLiveRegion="polite"
       />
     </View>
   );

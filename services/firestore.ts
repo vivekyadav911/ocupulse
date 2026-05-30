@@ -1,4 +1,5 @@
 import { doc, getDoc, setDoc, type DocumentReference } from 'firebase/firestore';
+import { isAnonymousExperiment } from '../lib/experiments/deleteAuth';
 import { getCurrentUser, getUserProfile } from './auth';
 import { getTeamTeacherId } from './profiles';
 import { useSessionStore } from '../store/sessionStore';
@@ -30,6 +31,13 @@ export type LeaderRow = {
 };
 
 export type LeaderboardFilter = string | 'all';
+
+function ownerEmailFromPayload(payload: Record<string, unknown>): string | null {
+  const raw = payload.ownerEmail;
+  if (raw == null) return null;
+  const email = String(raw).trim().toLowerCase();
+  return email.length ? email : null;
+}
 
 function docRefForPath(
   db: NonNullable<ReturnType<typeof getFirestoreDb>>,
@@ -87,13 +95,12 @@ export async function syncOutbox(): Promise<void> {
     (profile?.role === 'student' && Boolean(uid)) || profile?.role === 'teacher';
 
   const synced: number[] = [];
-  const dropped: number[] = [];
 
   for (const r of rows) {
     const isScoreOrSession = r.path.startsWith('scores/') || r.path.startsWith('sessions/');
 
     if (isScoreOrSession && !canSyncScores) {
-      dropped.push(r.id);
+      // Auth/profile not ready yet — keep outbox rows for a later sync attempt.
       continue;
     }
 
@@ -133,22 +140,24 @@ export async function syncOutbox(): Promise<void> {
       synced.push(r.id);
     } catch (e) {
       if (isPermissionDenied(e)) {
-        dropped.push(r.id);
+        console.warn('[Ocupulse] syncOutbox permission denied — keeping row for retry', r.id);
       } else {
         console.warn('[Ocupulse] syncOutbox failed for row', r.id, e);
       }
     }
   }
 
-  await deleteOutboxIds([...synced, ...dropped]);
+  if (synced.length) await deleteOutboxIds(synced);
 }
 
 /** Remove orphaned score/session rows that cannot sync (e.g. from old sessions). */
 export async function clearStaleOutboxRows(): Promise<void> {
+  const user = getCurrentUser();
+  if (!user) return;
+
   const rows = await getAllOutbox();
   if (!rows.length) return;
 
-  const user = getCurrentUser();
   const profile = user ? await getUserProfile(user.uid) : null;
   const canSyncScores =
     profile?.role === 'teacher' || (profile?.role === 'student' && Boolean(user?.uid));
@@ -158,17 +167,94 @@ export async function clearStaleOutboxRows(): Promise<void> {
       (r) =>
         r.path.startsWith('scores/') ||
         r.path.startsWith('sessions/') ||
-        (!user && (r.path.startsWith('teams/') || r.path.includes('/students/'))),
+        r.path.startsWith('teams/') ||
+        r.path.includes('/students/'),
     )
     .filter((r) => {
       if (r.path.startsWith('scores/') || r.path.startsWith('sessions/')) {
         return !canSyncScores;
       }
-      return !user;
+      return false;
     })
     .map((r) => r.id);
 
   if (stale.length) await deleteOutboxIds(stale);
+}
+
+/** Rebuild outbox entries for local results that lost their sync queue. */
+export async function requeueUnsyncedExperiments(): Promise<void> {
+  const user = getCurrentUser();
+  const profile = user ? await getUserProfile(user.uid) : null;
+  if (!user || profile?.role !== 'student') return;
+
+  const [results, outbox] = await Promise.all([resultsDao.findAll(), getAllOutbox()]);
+  const outboxPaths = new Set(outbox.map((r) => r.path));
+
+  for (const result of results) {
+    if (!result.id || !result.activityType || result.score == null) continue;
+    if (result.synced === 1 && outboxPaths.has(`scores/${result.id}`)) continue;
+
+    const scoresPath = `scores/${result.id}`;
+    const sessionsPath = `sessions/${result.id}`;
+    if (outboxPaths.has(scoresPath) && outboxPaths.has(sessionsPath)) continue;
+
+    let payload: Record<string, unknown> = {};
+    if (result.dataJson) {
+      try {
+        payload = JSON.parse(result.dataJson) as Record<string, unknown>;
+      } catch {
+        payload = {};
+      }
+    }
+
+    const session = useSessionStore.getState();
+    const teamName = String(payload.teamName ?? session.teamName ?? 'Demo Team');
+    const teamId = result.teamId ?? session.teamId ?? null;
+    const studentId = result.studentId ?? session.studentId ?? null;
+    const userId = result.userId ?? user.uid;
+    const submittedAt = Number(payload.submittedAt ?? payload.updatedAt ?? Date.now());
+    const teacherId = await getTeamTeacherId(teamId);
+
+    const authAnonymous = isAnonymousExperiment(payload, userId);
+    const ownerEmail = ownerEmailFromPayload(payload);
+
+    const docPayload = {
+      ...payload,
+      teamName,
+      activityType: result.activityType,
+      score: result.score,
+      teamId,
+      studentId,
+      userId,
+      teacherId,
+      sessionId: result.id,
+      authAnonymous,
+      ownerEmail,
+      updatedAt: submittedAt,
+      submittedAt,
+    };
+
+    if (!outboxPaths.has(scoresPath)) {
+      await insertOutbox(scoresPath, docPayload);
+      outboxPaths.add(scoresPath);
+    }
+
+    const sessionRow = await sessionsDao.findById(result.id);
+    if (!outboxPaths.has(sessionsPath)) {
+      await insertOutbox(sessionsPath, {
+        teamId,
+        studentId,
+        teacherId,
+        activityType: result.activityType,
+        startTime: sessionRow?.startTime ?? submittedAt,
+        createdBy: sessionRow?.createdBy ?? userId,
+        authAnonymous,
+        ownerEmail,
+        updatedAt: submittedAt,
+      });
+      outboxPaths.add(sessionsPath);
+    }
+  }
 }
 
 export async function writeSessionOptimistic(input: {
@@ -187,6 +273,8 @@ export async function writeSessionOptimistic(input: {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const user = getCurrentUser();
   const userId = input.userId ?? user?.uid ?? null;
+  const authAnonymous = user?.isAnonymous ?? false;
+  const ownerEmail = user?.email?.trim() || null;
   const submittedAt = Date.now();
   const session = useSessionStore.getState();
   const personalPractice = input.personalPractice === true;
@@ -213,6 +301,8 @@ export async function writeSessionOptimistic(input: {
     activityType: input.activityType,
     score: input.score,
     submittedAt,
+    authAnonymous,
+    ownerEmail,
     ...(studentFirstName ? { studentFirstName } : {}),
   };
 
@@ -235,6 +325,8 @@ export async function writeSessionOptimistic(input: {
     studentId,
     userId,
     sessionId: id,
+    authAnonymous,
+    ownerEmail,
     mediaUrls: input.mediaUrls ?? [],
     updatedAt: submittedAt,
     ...(personalPractice ? { personalPractice: true } : { teacherId }),
@@ -250,6 +342,8 @@ export async function writeSessionOptimistic(input: {
       : { teacherId, createdBy: userId }),
     activityType: input.activityType,
     startTime: submittedAt,
+    authAnonymous,
+    ownerEmail,
     updatedAt: submittedAt,
   });
 

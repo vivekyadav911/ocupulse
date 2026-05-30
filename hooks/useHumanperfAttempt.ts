@@ -1,5 +1,5 @@
 import { Accelerometer } from 'expo-sensors';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import {
   aggregateAttempt,
   computeJerkMm,
@@ -78,6 +78,18 @@ export function useHumanperfAttempt() {
   }, []);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
+
+  useEffect(() => {
+    const onAppState = (next: AppStateStatus) => {
+      if (next !== 'active' || !recordingRef.current) return;
+      const remaining = Math.max(0, endAtRef.current - Date.now());
+      setSecsLeft(Math.ceil(remaining / 1000));
+      setProgress(remaining / durationMsRef.current);
+      if (remaining <= 0) finishAttempt();
+    };
+    const sub = AppState.addEventListener('change', onAppState);
+    return () => sub.remove();
+  }, [finishAttempt]);
 
   const startAttempt = useCallback(
     (durationSec: HumanperfAttemptDurationSec = DEFAULT_ATTEMPT_DURATION_SEC) => {

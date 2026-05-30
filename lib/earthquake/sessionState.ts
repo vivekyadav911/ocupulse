@@ -31,7 +31,6 @@ export type EarthquakeSessionState = {
   testDurationSec: EarthquakeTestDurationSec;
   runs: Record<EarthquakeDesign, EarthquakeDesignRun>;
   reflection: EarthquakeReflection;
-  testPhase: 'idle' | 'running' | 'runDone';
   uploadStatus: 'idle' | 'uploading' | 'success' | 'error';
   uploadError: string | null;
 };
@@ -59,7 +58,6 @@ export function createInitialEarthquakeSessionState(): EarthquakeSessionState {
       3: createEmptyRun(3),
     },
     reflection: { bestDesignWhy: '', surprises: '' },
-    testPhase: 'idle',
     uploadStatus: 'idle',
     uploadError: null,
   };

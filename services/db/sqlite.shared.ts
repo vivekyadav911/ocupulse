@@ -265,18 +265,34 @@ export function createSqliteExports(getDatabase: () => Promise<SQLite.SQLiteData
     await resultsDao.update({ ...existing, synced: 1 });
   }
 
-  async function deleteSessionAndResult(sessionId: string): Promise<void> {
+  async function deleteResultById(id: string): Promise<void> {
     const database = await getDatabase();
-    await database.runAsync('DELETE FROM results WHERE id = ? OR session_id = ?', [
-      sessionId,
-      sessionId,
-    ]);
-    await database.runAsync('DELETE FROM sessions WHERE id = ?', [sessionId]);
-    const outbox = await getAllOutbox();
-    const stale = outbox
-      .filter((r) => r.path === `scores/${sessionId}` || r.path === `sessions/${sessionId}`)
-      .map((r) => r.id);
-    await deleteOutboxIds(stale);
+    await database.runAsync('DELETE FROM experiment_results WHERE id = ?', [id]);
+  }
+
+  async function deleteSessionById(id: string): Promise<void> {
+    const database = await getDatabase();
+    await database.runAsync('DELETE FROM sessions WHERE id = ?', [id]);
+  }
+
+  async function deleteMediaBySessionId(sessionId: string): Promise<void> {
+    const database = await getDatabase();
+    await database.runAsync('DELETE FROM media_assets WHERE session_id = ?', [sessionId]);
+  }
+
+  async function deleteOutboxByPaths(paths: string[]): Promise<void> {
+    if (!paths.length) return;
+    const database = await getDatabase();
+    for (const path of paths) {
+      await database.runAsync('DELETE FROM outbox WHERE path = ?', [path]);
+    }
+  }
+
+  async function deleteSessionAndResult(sessionId: string): Promise<void> {
+    await deleteResultById(sessionId);
+    await deleteSessionById(sessionId);
+    await deleteMediaBySessionId(sessionId);
+    await deleteOutboxByPaths([`scores/${sessionId}`, `sessions/${sessionId}`]);
   }
 
   return {
@@ -292,5 +308,9 @@ export function createSqliteExports(getDatabase: () => Promise<SQLite.SQLiteData
     deleteOutboxForPath,
     markResultSynced,
     deleteSessionAndResult,
+    deleteResultById,
+    deleteSessionById,
+    deleteMediaBySessionId,
+    deleteOutboxByPaths,
   };
 }

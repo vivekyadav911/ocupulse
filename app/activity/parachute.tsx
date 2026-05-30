@@ -2,7 +2,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, Switch, Text, View } from 'react-native';
 import { ActivityCard } from '../../components/ActivityCard';
-import { ActivityErrorBoundary } from '../../components/ActivityErrorBoundary';
 import { Button } from '../../components/Button';
 import { ExperimentScreen } from '../../components/ExperimentScreen';
 import { FormField } from '../../components/FormField';
@@ -41,11 +40,7 @@ import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/themedStyles';
 
 export default function ParachuteScreen() {
-  return (
-    <ActivityErrorBoundary>
-      <ParachuteScreenInner />
-    </ActivityErrorBoundary>
-  );
+  return <ParachuteScreenInner />;
 }
 
 function ParachuteScreenInner() {
@@ -72,17 +67,75 @@ function ParachuteScreenInner() {
   const [fallElapsed, setFallElapsed] = useState(0);
   const [fallRunning, setFallRunning] = useState(false);
   const [showLiveGraphs, setShowLiveGraphs] = useState(false);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const location = useLocation();
   const calc = useMemo(() => activeTabCalc(state), [state]);
   const allRuns = useMemo(() => summarizeAllRuns(state), [state]);
 
   const updateTab = useCallback((key: TabKey, partial: Partial<TabData>) => {
-    setState((s) => ({
-      ...s,
-      tabs: { ...s.tabs, [key]: { ...s.tabs[key], ...partial } },
-    }));
+    setState((s) => {
+      const prev = s.tabs[key];
+      const hasChange = (Object.keys(partial) as (keyof TabData)[]).some(
+        (field) => prev[field] !== partial[field],
+      );
+      if (!hasChange) return s;
+      return {
+        ...s,
+        tabs: { ...s.tabs, [key]: { ...prev, ...partial } },
+      };
+    });
   }, []);
+
+  const handleReviewFrameChange = useCallback(
+    (currentReviewFrame: number) => {
+      updateTab(stateRef.current.activeTab, { currentReviewFrame });
+    },
+    [updateTab],
+  );
+
+  const handleMarkFirstContact = useCallback(
+    (firstContactFrame: number) => {
+      updateTab(stateRef.current.activeTab, { firstContactFrame });
+    },
+    [updateTab],
+  );
+
+  const handleMarkStopped = useCallback(
+    (stoppedFrame: number) => {
+      updateTab(stateRef.current.activeTab, { stoppedFrame });
+    },
+    [updateTab],
+  );
+
+  const handleGForcePathChange = useCallback(
+    (gForcePath: TabData['gForcePath']) => {
+      updateTab(stateRef.current.activeTab, { gForcePath });
+    },
+    [updateTab],
+  );
+
+  const handleTUpChange = useCallback(
+    (tUpS: string) => {
+      updateTab(stateRef.current.activeTab, { tUpS });
+    },
+    [updateTab],
+  );
+
+  const handleContactTimeChange = useCallback(
+    (contactTimeS: string) => {
+      updateTab(stateRef.current.activeTab, { contactTimeS });
+    },
+    [updateTab],
+  );
+
+  const handleContactTimeFromVideo = useCallback(
+    (contactTimeS: string) => {
+      updateTab(stateRef.current.activeTab, { contactTimeS });
+    },
+    [updateTab],
+  );
 
   const setReflection = useCallback((partial: Partial<ChallengeState['reflection']>) => {
     setState((s) => ({ ...s, reflection: { ...s.reflection, ...partial } }));
@@ -304,6 +357,7 @@ function ParachuteScreenInner() {
           : null,
       );
       let apiNote: string | null = null;
+      const sessionId = await persistParachuteResults();
       try {
         await submitParachuteActivity(payload);
       } catch (apiErr) {
@@ -311,7 +365,6 @@ function ParachuteScreenInner() {
           apiErr instanceof Error ? apiErr.message : 'STEMM API unavailable — saved on device.';
         if (__DEV__) console.warn('[Ocupulse] parachute API upload skipped', apiErr);
       }
-      const sessionId = await persistParachuteResults();
       clearDraft();
       setState((s) => ({
         ...s,
@@ -521,17 +574,13 @@ function ParachuteScreenInner() {
             tUpS={activeTab.tUpS}
             contactTimeS={activeTab.contactTimeS}
             primaryMode={state.primaryMode}
-            onFrameChange={(currentReviewFrame) =>
-              updateTab(state.activeTab, { currentReviewFrame })
-            }
-            onMarkFirstContact={(firstContactFrame) =>
-              updateTab(state.activeTab, { firstContactFrame })
-            }
-            onMarkStopped={(stoppedFrame) => updateTab(state.activeTab, { stoppedFrame })}
-            onGForcePathChange={(gForcePath) => updateTab(state.activeTab, { gForcePath })}
-            onTUpChange={(tUpS) => updateTab(state.activeTab, { tUpS })}
-            onContactTimeChange={(contactTimeS) => updateTab(state.activeTab, { contactTimeS })}
-            onContactTimeFromVideo={(contactTimeS) => updateTab(state.activeTab, { contactTimeS })}
+            onFrameChange={handleReviewFrameChange}
+            onMarkFirstContact={handleMarkFirstContact}
+            onMarkStopped={handleMarkStopped}
+            onGForcePathChange={handleGForcePathChange}
+            onTUpChange={handleTUpChange}
+            onContactTimeChange={handleContactTimeChange}
+            onContactTimeFromVideo={handleContactTimeFromVideo}
           />
         ) : (
           <ParachuteCameraSection onRecorded={(videoUri) => void handleVideoRecorded(videoUri)} />

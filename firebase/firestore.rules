@@ -23,6 +23,22 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/teams/$(teamId)).data.teacherId == request.auth.uid;
     }
 
+    function hasOwnerEmail() {
+      return resource.data.keys().hasAny(['ownerEmail'])
+        && resource.data.ownerEmail is string
+        && resource.data.ownerEmail.size() > 0;
+    }
+
+    function isAnonymousExperimentData() {
+      return resource.data.authAnonymous == true && !hasOwnerEmail();
+    }
+
+    function actorEmailMatchesOwner() {
+      return hasOwnerEmail()
+        && userDoc().data.keys().hasAny(['email'])
+        && userDoc().data.email == resource.data.ownerEmail;
+    }
+
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
@@ -60,9 +76,19 @@ service cloud.firestore {
           || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
           || (isTeacher() && isPersonalPracticeScore())
         );
-      allow update, delete: if request.auth != null
+      allow update: if request.auth != null
         && (
-          (isStudent() && resource.data.userId == request.auth.uid)
+          (isStudent() && request.resource.data.userId == request.auth.uid)
+          || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+          || (isTeacher() && isPersonalPracticeScore())
+        );
+      allow delete: if request.auth != null
+        && (
+          (isStudent() && (
+            isAnonymousExperimentData()
+            || resource.data.userId == request.auth.uid
+            || actorEmailMatchesOwner()
+          ))
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
           || (isTeacher() && isPersonalPracticeScoreExisting())
         );
@@ -82,9 +108,21 @@ service cloud.firestore {
             && request.resource.data.personalPractice == true
             && request.resource.data.createdBy == request.auth.uid)
         );
-      allow update, delete: if request.auth != null
+      allow update: if request.auth != null
         && (
-          (isStudent() && resource.data.createdBy == request.auth.uid)
+          (isStudent() && request.resource.data.createdBy == request.auth.uid)
+          || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+          || (isTeacher()
+            && request.resource.data.personalPractice == true
+            && request.resource.data.createdBy == request.auth.uid)
+        );
+      allow delete: if request.auth != null
+        && (
+          (isStudent() && (
+            (resource.data.authAnonymous == true && !hasOwnerEmail())
+            || resource.data.createdBy == request.auth.uid
+            || actorEmailMatchesOwner()
+          ))
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
           || (isTeacher()
             && resource.data.personalPractice == true
