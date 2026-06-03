@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthRoleToggle } from '../../components/AuthRoleToggle';
 import { Button } from '../../components/Button';
@@ -14,6 +14,7 @@ import {
   getUserProfile,
   registerStudentEmail,
   registerTeacherEmail,
+  requestPasswordResetEmail,
   signInAnonymousStudent,
   signInEmail,
   signOutUser,
@@ -110,6 +111,16 @@ export default function LoginScreen() {
       marginTop: t.spacing.md,
     },
     footerText: { fontSize: t.typography.caption, color: t.colors.muted },
+    forgotLink: {
+      alignSelf: 'center' as const,
+      marginTop: t.spacing.sm,
+      paddingVertical: t.spacing.xs,
+    },
+    forgotText: {
+      fontSize: t.typography.caption,
+      fontWeight: '600' as const,
+      color: t.colors.accent,
+    },
   }));
 
   const finishAuth = (profileRole: AuthRole, ready: boolean, name?: string) => {
@@ -254,6 +265,33 @@ export default function LoginScreen() {
     }
   };
 
+  const resetPassword = async () => {
+    if (!firebaseReady) {
+      Alert.alert('Firebase', 'Configure Firebase in .env and restart Expo with -c.');
+      return;
+    }
+    const trimmed = email.trim();
+    if (!trimmed) {
+      Alert.alert(
+        'Reset password',
+        'Enter the email address you used to sign up, then tap Forgot password again.',
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      await requestPasswordResetEmail(trimmed);
+      Alert.alert(
+        'Check your email',
+        `If an account exists for ${trimmed}, you will receive a password reset link shortly. Open the email on any device, set a new password, then return here to sign in.\n\nCheck spam or junk if it does not arrive within a few minutes.`,
+      );
+    } catch (e) {
+      Alert.alert('Reset password', formatAuthError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const quickJoin = async () => {
     if (!firebaseReady) {
       Alert.alert('Firebase', 'Configure Firebase in .env and restart Expo with -c.');
@@ -366,6 +404,19 @@ export default function LoginScreen() {
             onPress={mode === 'signin' ? signIn : signUp}
             disabled={busy}
           />
+
+          {mode === 'signin' ? (
+            <Pressable
+              style={styles.forgotLink}
+              onPress={() => void resetPassword()}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Forgot password"
+              accessibilityHint="Sends a password reset link to your email"
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
+          ) : null}
 
           {role === 'student' && mode === 'signin' ? (
             <>

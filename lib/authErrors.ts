@@ -12,6 +12,8 @@ export function formatAuthError(error: unknown): string {
         return 'Password must be at least 6 characters.';
       case 'auth/invalid-email':
         return 'Please enter a valid email address.';
+      case 'auth/missing-email':
+        return 'Enter the email you used to sign up.';
       case 'auth/operation-not-allowed':
         return 'Email/password sign-in is not enabled. Enable it in Firebase Console → Authentication.';
       case 'auth/too-many-requests':

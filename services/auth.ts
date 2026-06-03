@@ -2,6 +2,7 @@ import {
   type User,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInAnonymously,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
@@ -33,6 +34,12 @@ export function onAuthChange(cb: (u: User | null) => void) {
 export async function signInEmail(email: string, password: string) {
   const auth = getAuthInstance();
   return signInWithEmailAndPassword(auth, email.trim(), password);
+}
+
+/** Sends a reset link to any email/password account (Gmail, Outlook, school domains, etc.). */
+export async function requestPasswordResetEmail(email: string): Promise<void> {
+  const auth = getAuthInstance();
+  await sendPasswordResetEmail(auth, email.trim());
 }
 
 export async function signInAnonymousStudent() {
