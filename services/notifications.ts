@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { isExpoGo } from '../lib/expoRuntime';
 
 type NotificationsModule = typeof import('expo-notifications');
@@ -5,6 +6,10 @@ type NotificationsModule = typeof import('expo-notifications');
 let notificationsModule: NotificationsModule | null | undefined;
 
 async function loadNotifications(): Promise<NotificationsModule | null> {
+  if (Platform.OS === 'web') {
+    notificationsModule = null;
+    return null;
+  }
   if (notificationsModule !== undefined) return notificationsModule;
   try {
     notificationsModule = await import('expo-notifications');
