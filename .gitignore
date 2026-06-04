@@ -62,6 +62,7 @@ docs/
 test-artifacts/
 *.pdf
 *.docx
+ocupulse-source.zip
 
 # Testing
 coverage/
