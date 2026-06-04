@@ -1,13 +1,15 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { AuthScreenHeader } from '../../components/AuthScreenHeader';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { FormField } from '../../components/FormField';
 import { TeamIdPreview } from '../../components/TeamIdPreview';
+import { TeamSelectField } from '../../components/TeamSelectField';
 import { applySessionFromProfile } from '../../lib/applySessionFromProfile';
-import { setupStudentProfile } from '../../services/profiles';
+import type { Team } from '../../services/db/types';
+import { fetchAvailableTeams, setupStudentProfile } from '../../services/profiles';
 import { syncAll } from '../../services/sync';
 import { useAuthStore } from '../../store/authStore';
 import { useThemedStyles } from '../../theme/themedStyles';
@@ -15,8 +17,29 @@ import { useThemedStyles } from '../../theme/themedStyles';
 export default function StudentSetupScreen() {
   const router = useRouter();
   const [firstName, setFirstName] = useState('');
-  const [teamName, setTeamName] = useState('');
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAvailableTeams()
+      .then((rows) => {
+        if (!cancelled) setTeams(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setTeams([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTeamsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedTeam = teams.find((t) => t.id === teamId) ?? null;
   const styles = useThemedStyles((t) => ({
     screen: { flex: 1, backgroundColor: t.colors.authBg },
     scroll: {
@@ -46,17 +69,16 @@ export default function StudentSetupScreen() {
   }));
 
   const finish = async () => {
-    if (!firstName.trim() || !teamName.trim()) {
-      Alert.alert('Profile', 'Enter your first name and team name.');
+    if (!firstName.trim() || !teamId) {
+      Alert.alert('Profile', 'Enter your first name and choose a team.');
       return;
     }
     setBusy(true);
     try {
       const { team, student } = await setupStudentProfile({
         firstName: firstName.trim(),
-        teamName: teamName.trim(),
+        teamId,
       });
-      const needsApproval = Boolean(team.teacherId);
       applySessionFromProfile({
         role: 'student',
         profileReady: true,
@@ -66,7 +88,7 @@ export default function StudentSetupScreen() {
         displayName: student.firstName,
         studentFirstName: student.firstName,
         activeTeamId: team.id,
-        teamMemberStatus: needsApproval ? 'pending' : 'active',
+        teamMemberStatus: 'active',
       });
       useAuthStore.getState().setProfileHydrated(true);
       await syncAll();
@@ -86,8 +108,8 @@ export default function StudentSetupScreen() {
         <Card bordered>
           <Text style={styles.h1}>Student profile</Text>
           <Text style={styles.sub}>
-            Enter your first name and the exact team name from your teacher&apos;s dashboard. You
-            can join right away — your teacher approves or removes you later from Join requests.
+            Enter your first name and choose your class team from the list. You can start
+            experiments as soon as you join.
           </Text>
           <FormField
             label="First name"
@@ -96,15 +118,20 @@ export default function StudentSetupScreen() {
             placeholder="Alex"
             accessibilityLabel="First name"
           />
-          <FormField
-            label="Team name"
-            value={teamName}
-            onChangeText={setTeamName}
-            placeholder="Team Koala"
-            accessibilityLabel="Team name"
+          <TeamSelectField
+            teams={teams}
+            value={teamId}
+            onChange={setTeamId}
+            loading={teamsLoading}
+            disabled={busy}
           />
-          <TeamIdPreview teamName={teamName} />
-          <Button title="Continue" icon="checkmark" onPress={finish} disabled={busy} />
+          <TeamIdPreview teamName={selectedTeam?.name ?? ''} />
+          <Button
+            title="Continue"
+            icon="checkmark"
+            onPress={finish}
+            disabled={busy || teamsLoading || !teamId}
+          />
         </Card>
       </ScrollView>
     </View>

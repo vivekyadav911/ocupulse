@@ -1,60 +1,114 @@
 # Ocupulse
 
-Cross-platform **Ocupulse** mobile app — Expo / React Native, Firebase (Auth + Firestore + Test Lab), seven sensor-driven activities, offline-first SQLite outbox, and Azure DevOps–tracked sprints (CSE3MAD Assessment 4).
+Cross-platform mobile app for STEMM Lab — Expo / React Native, Firebase (Auth + Firestore), seven sensor-driven activities, and offline-first SQLite sync.
 
-**Expo SDK**: this repo targets the SDK from `create-expo-app` (≥ 51; currently **SDK 54**).
+**Contributors:** [vivekyadav911](https://github.com/vivekyadav911), [vineetyadavx](https://github.com/vineetyadavx)
 
-## Azure DevOps
+**Expo SDK:** 54 (`expo` ~54.0.33)
 
-- **Organisation / project** (update with your live URL): `https://dev.azure.com/cse3mad-stemm-lab/STEMM-Lab`
+## Prerequisites
+
+| Tool | Version | Verify |
+|------|---------|--------|
+| Node.js | 22.22.0 (LTS) | `node -v` |
+| npm | 11.x | `npm -v` |
+| Expo CLI | 54.x | `npx expo --version` |
+| TypeScript | 5.9.x | `npx tsc --version` |
+
+**Android:** Android Studio with SDK 35, JDK 17.  
+**iOS (macOS):** Xcode 16.x, Command Line Tools.
 
 ## Quick start
 
 ```bash
+git clone https://github.com/vivekyadav911/ocupulse.git
+cd ocupulse
 cp .env.example .env
-# Fill Firebase + AdMob keys (never commit .env)
+# Fill FIREBASE_* from Firebase Console (see Firebase section below)
 
 npm install
+npm run secret-scan
 npx expo start
 ```
 
-Place `google-services.json` and `GoogleService-Info.plist` at the **repo root** (gitignored).
+Place `google-services.json` and `GoogleService-Info.plist` at the **repo root** if using native prebuild (both are gitignored).
+
+After changing `.env`, restart with a clean cache: `npx expo start -c`.
+
+## Firebase
+
+Project: **`ocupulse-a9986`**
+
+1. Copy [`.env.example`](.env.example) → `.env` and fill web app keys from [Firebase Console](https://console.firebase.google.com/project/ocupulse-a9986/settings/general) → Your apps → Web app.
+2. Enable **Email/Password** and **Anonymous** auth (student quick join).
+3. Create a **Firestore** database.
+4. Deploy rules and indexes:
+
+```bash
+npm run firebase:login
+npm run firebase:deploy-firestore
+```
+
+Or first-time setup: `npm run firebase:setup` then `npm run firebase:sync-env`.
+
+Security rules live in [`firebase/firestore.rules`](firebase/firestore.rules). Media stays on-device (`expo-file-system`); Firestore stores scores, users, teams, and sessions.
+
+## Roles and workflow
+
+| Role | Sign-in | Experiments | Data |
+|------|---------|-------------|------|
+| **Student** | Student tab or quick join | After teacher approves roster (if team has a teacher) | Own results + team leaderboard |
+| **Teacher** | Teacher tab | Anytime (personal practice) | **My experiment results** + **Team library** |
+
+**Students joining a class**
+
+1. Teacher sets a team name in **Teacher setup** and shares it.
+2. Student signs up and enters the **same team name**.
+3. Teacher **Accept** on the dashboard; until then, activities are disabled.
+
+**Teachers**
+
+- Personal runs do not appear on the team Board.
+- **Team management** — approve, decline, remove students.
+- **Board** — team leaderboard only.
+
+One email = one role in Firestore.
 
 ## Scripts
 
-- `npm start` — Expo dev server  
-- `npm run lint` — ESLint  
-- `npm run secret-scan` — block committed API keys / AdMob units  
-- `npm test` — Jest (179 tests). If SQLite tests fail with `NODE_MODULE_VERSION`, run `npm run rebuild:native` after changing Node.js version.  
-- `npm run firebase:setup` — create `.env` from Firebase CLI  
-- `npm run firebase:login` — sign in to Firebase (no global CLI install needed)  
-- `npm run firebase:deploy-firestore` — deploy rules + indexes after login  
-- `npm run android` / `npm run ios`
-- `npm run eas:login` — sign in to Expo (**required once**; opens browser — run this before any EAS build)
-- `npm run eas:whoami` — confirm you are logged in
-- `npm run eas:init` — link the repo to an Expo project (first time; if it errors on `app.config.ts`, the `projectId` is already in that file)
-- `npm run build:android:preview:setup` — **first Android build only** (interactive; Expo creates the signing keystore — answer Yes when asked)
-- `npm run build:android:preview` — queue **preview APK** after setup (`--no-wait`; build runs in the cloud while you work)
-- `npm run build:android:preview:bg` — same as preview, via PowerShell script with log at `build-android-preview.log`
-- `npm run build:android:preview:wait` — stay in the terminal until the APK is ready
-- `npm run eas:credentials:android` — manage Android signing credentials on Expo (optional)
+| Command | Purpose |
+|---------|---------|
+| `npm start` | Expo dev server |
+| `npm run lint` | ESLint |
+| `npm test` | Jest (run `npm run rebuild:native` if SQLite tests fail after a Node upgrade) |
+| `npm run secret-scan` | Fail on committed API keys / real AdMob units |
+| `npm run guard:sensitive` | Fail if tracked files include secrets or submission artifacts |
+| `npm run firebase:setup` | Create `.env` from Firebase CLI |
+| `npm run firebase:deploy-firestore` | Deploy Firestore rules + indexes |
+| `npm run android` / `npm run ios` | Native run |
+| `npm run eas:login` | Sign in to Expo (once, before EAS builds) |
+| `npm run build:android:preview:setup` | First Android preview build (interactive keystore) |
+| `npm run build:android:preview` | Queue preview APK (`--no-wait`) |
+| `npm run build:android:preview:wait` | Wait for preview APK in terminal |
 
-## Docs
+## Quality gates (before push)
 
-- [`docs/team-workflow.md`](docs/team-workflow.md) — students, teachers, approval, personal vs team data  
-- [`docs/pre-release-checklist.md`](docs/pre-release-checklist.md) — smoke test before demo  
-- [`docs/contributing.md`](docs/contributing.md) — branch / PR / secret-scan routine  
-- [`docs/sprint-1/`](docs/sprint-1/) — A1/A2 imports, [competitor SUS analysis](docs/sprint-1/competitor-analysis.md), capability matrix, Firebase rationale  
-- [`docs/sprint-2/`](docs/sprint-2/) — [screen flow + wireframes](docs/sprint-2/screen-flow.md), spikes, [design tokens](docs/sprint-2/design-tokens.md), [components](docs/sprint-2/components.md), [retro](docs/sprint-2/sprint-2-retro.md), [closeout](docs/sprint-2/closeout.md)  
-- [`docs/sprint-3/`](docs/sprint-3/) — services / architecture notes  
+```bash
+npm run guard:sensitive
+npm run secret-scan
+npm run lint
+npm test
+```
 
-## Submission checklist (Assessment 4)
+Husky runs the sensitive-file guard and secret scan on commit; push runs the guard on outgoing commits.
 
-- [ ] Both students submit on LMS; source zip excludes `.env` and `google-services.json`.
-- [ ] Populate `.env` from `.env.example`; configure Firestore rules before wider trials.
-- [ ] Run `npm run build:android:preview` (APK) or production profile via `npx eas build --platform android --profile production`; upload to **Firebase Test Lab** (two devices, one per student).
-- [ ] Record pitch videos; expand `docs/user-manual-*.md` and testing reports to ~3 pages each.
-- [ ] Secret scan: `rg "AIza|ca-app-pub-"` must not match tracked source (except documented placeholders).
+## Exporting source for submission
+
+Do **not** commit `.env`, `google-services.json`, PDFs, or a `docs/` folder. Generate a clean archive from a tagged commit:
+
+```bash
+git archive --format=zip --output=ocupulse-source.zip HEAD
+```
 
 ## Licence
 

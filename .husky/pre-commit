@@ -1,1 +1,3 @@
+node scripts/guard-sensitive-files.cjs staged
+npm run secret-scan
 npx lint-staged

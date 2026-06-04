@@ -47,9 +47,9 @@ export default function OnboardingScreen() {
         <Card bordered>
           <Text style={styles.h1}>Welcome to Ocupulse</Text>
           <Text style={styles.p}>
-            Students register with email, join their teacher&apos;s team by name (teacher must
-            approve before experiments), or use quick join. Teachers run activities for practice,
-            manage rosters, and review class results — see docs/team-workflow.md in the repo.
+            Students register with email, choose their teacher&apos;s team from the list, or use
+            quick join. Teachers run activities for practice, manage rosters, and review class
+            results.
           </Text>
           <Button title="Continue to login" onPress={() => router.replace('/(auth)/login')} />
         </Card>

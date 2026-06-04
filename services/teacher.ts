@@ -73,14 +73,13 @@ export function subscribeTeamStudents(
     (snap) => {
       const rows = snap.docs.map((d) => {
         const data = d.data();
-        const statusRaw = String(data.status ?? 'active');
         return {
           id: d.id,
           firstName: String(data.firstName ?? 'Student'),
           uid: data.uid != null ? String(data.uid) : null,
           email: data.email != null ? String(data.email) : null,
           teamId,
-          status: statusRaw === 'pending' ? 'pending' : 'active',
+          status: 'active',
         };
       });
       if (__DEV__) {
@@ -126,13 +125,12 @@ export async function getStudentProfile(
   const match = snap.docs.find((d) => d.id === studentId);
   if (!match) return null;
   const data = match.data();
-  const statusRaw = String(data.status ?? 'active');
   return {
     id: match.id,
     firstName: String(data.firstName ?? 'Student'),
     uid: data.uid != null ? String(data.uid) : null,
     email: data.email != null ? String(data.email) : null,
     teamId,
-    status: statusRaw === 'pending' ? 'pending' : 'active',
+    status: 'active',
   };
 }

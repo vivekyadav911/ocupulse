@@ -13,6 +13,15 @@
       "android": {
         "buildType": "apk",
         "credentialsSource": "remote"
+      },
+      "ios": {
+        "simulator": false,
+        "credentialsSource": "remote"
+      }
+    },
+    "preview-ios-simulator": {
+      "ios": {
+        "simulator": true
       }
     },
     "production": {

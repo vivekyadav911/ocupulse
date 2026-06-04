@@ -38,9 +38,27 @@ yarn-error.*
 .env.*
 !.env.example
 
+# Local build outputs (never commit binaries)
+build/
+*.apk
+*.aab
+*.ipa
+
 # Firebase native configs (never commit)
 google-services.json
 GoogleService-Info.plist
+**/google-services.json
+**/GoogleService-Info.plist
+
+# Service accounts / credential dumps
+*serviceAccount*.json
+*credentials*.json
+
+# Submission / local-only artifacts
+docs/
+test-artifacts/
+*.pdf
+*.docx
 
 # Testing
 coverage/

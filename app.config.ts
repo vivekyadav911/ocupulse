@@ -5,6 +5,12 @@ function firebaseEnv(name: string): string {
   return process.env[`EXPO_PUBLIC_FIREBASE_${name}`] ?? process.env[`FIREBASE_${name}`] ?? '';
 }
 
+/** Google sample app IDs — safe for dev/Test Lab; override via ADMOB_*_APP_ID in .env for release. */
+const ADMOB_ANDROID_APP_ID =
+  process.env.ADMOB_ANDROID_APP_ID?.trim() || 'ca-app-pub-3940256099942544~3347511713';
+const ADMOB_IOS_APP_ID =
+  process.env.ADMOB_IOS_APP_ID?.trim() || 'ca-app-pub-3940256099942544~1458002511';
+
 export default (): ExpoConfig => ({
   name: 'Ocupulse',
   slug: 'ocupulse',
@@ -25,6 +31,7 @@ export default (): ExpoConfig => ({
     requireFullScreen: true,
     infoPlist: {
       UIBackgroundModes: ['fetch'],
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
@@ -75,10 +82,17 @@ export default (): ExpoConfig => ({
     'expo-background-fetch',
     'expo-task-manager',
     'expo-video',
+    [
+      'react-native-google-mobile-ads',
+      {
+        androidAppId: ADMOB_ANDROID_APP_ID,
+        iosAppId: ADMOB_IOS_APP_ID,
+      },
+    ],
   ],
   extra: {
     eas: {
-      projectId: '0911f931-1fe2-4c03-80bf-f26c82d7a60c',
+      projectId: '5ff36b32-319c-4e1f-9431-ebe2739a1d29',
     },
     router: { origin: false },
     firebaseApiKey: firebaseEnv('API_KEY'),

@@ -121,7 +121,7 @@ export default function LeaderboardScreen() {
       : 'Scores from this device and cloud sync — complete an experiment, then Save result';
 
   const emptyMessage = isTeacher
-    ? 'No team scores yet — students must be approved on your roster, then complete activities. Your own practice runs appear under My experiment results, not here.'
+    ? 'No team scores yet — students join your team instantly, then complete activities. Your own practice runs appear under My experiment results, not here.'
     : 'No scores yet — open an activity, finish it, and tap Save result.';
 
   return (

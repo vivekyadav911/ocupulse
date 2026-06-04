@@ -225,13 +225,6 @@ export function ParachuteSlowMotionReview({
     [player],
   );
 
-  const scrubToFrame = useCallback(
-    (frame: number) => {
-      player.scrubToFrame(frame);
-    },
-    [player],
-  );
-
   const markFirst = () => {
     void player.pause();
     onMarkFirstContact(clampedFrame);

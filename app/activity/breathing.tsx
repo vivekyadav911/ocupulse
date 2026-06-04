@@ -157,7 +157,7 @@ export default function BreathingScreen() {
     if (state.phase !== 'results' || !teamId) return;
     if (!allStatesRecorded(state.recordings)) return;
 
-    return subscribeTeamExperiments(teamId, 'breathing', (rows) => {
+    const sub = subscribeTeamExperiments(teamId, 'breathing', (rows) => {
       const peerPayloads = rows.map((r) => r.payload);
       const teamAggregates = computeBreathingTeamAggregates(
         peerPayloads,
@@ -166,6 +166,7 @@ export default function BreathingScreen() {
       );
       setState((s) => ({ ...s, teamAggregates }));
     });
+    return () => sub.unsubscribe();
   }, [state.phase, teamId, studentFirstName, state.recordings]);
 
   const setReflection = useCallback((partial: Partial<BreathingSessionState['reflection']>) => {

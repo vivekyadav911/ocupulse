@@ -3,7 +3,7 @@ import path from 'path';
 import type { ReactTestInstance } from 'react-test-renderer';
 import { screen } from '@testing-library/react-native';
 
-const ARTIFACT_DIR = path.join(__dirname, '../docs/test-screenshots');
+const ARTIFACT_DIR = path.join(__dirname, '../test-artifacts');
 
 function escapeHtml(input: string): string {
   return input

@@ -1,7 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, Text, TextInput, View } from 'react-native';
-import { deleteOutboxForPath } from '../../services/db/sqlite';
 import { syncAll } from '../../services/sync';
 import { ActivityRow } from '../../components/ActivityRow';
 import { Badge } from '../../components/Badge';
@@ -12,18 +11,8 @@ import { ScreenShell } from '../../components/ScreenShell';
 import { HomeQuickTools } from '../../components/HomeQuickTools';
 import { StemmBannerAd } from '../../components/StemmBannerAd';
 import { ACTIVITY_CATALOG } from '../../lib/activities/catalog';
-import { canStudentRunExperiments } from '../../lib/studentAccess';
-import { PendingApprovalBanner } from '../../components/PendingApprovalBanner';
-import {
-  backfillTeacherTeamNameLower,
-  fetchStudentMemberStatus,
-  subscribeStudentMemberStatus,
-} from '../../services/profiles';
-import {
-  approveTeamStudent,
-  createManagedTeam,
-  removeTeamStudent,
-} from '../../services/teamManagement';
+import { backfillTeacherTeamNameLower, fetchStudentMemberStatus } from '../../services/profiles';
+import { createManagedTeam, removeTeamStudent } from '../../services/teamManagement';
 import {
   subscribeTeacherTeams,
   subscribeTeamStudents,
@@ -31,10 +20,7 @@ import {
   type TeamSummary,
 } from '../../services/teacher';
 import { getCurrentUser } from '../../services/auth';
-import {
-  ensureNotificationPermissions,
-  notifyStudentJoinRequest,
-} from '../../services/notifications';
+import { ensureNotificationPermissions } from '../../services/notifications';
 import { useSessionStore } from '../../store/sessionStore';
 import { useThemedStyles } from '../../theme/themedStyles';
 
@@ -58,37 +44,18 @@ function StudentHome() {
   const team = useSessionStore((s) => s.teamName);
   const teamId = useSessionStore((s) => s.teamId);
   const studentId = useSessionStore((s) => s.studentId);
-  const teamMemberStatus = useSessionStore((s) => s.teamMemberStatus);
   const setTeam = useSessionStore((s) => s.setTeam);
-  const canRun = canStudentRunExperiments(teamMemberStatus);
 
   useEffect(() => {
     if (!teamId || !studentId) return;
-    const rosterPath = `teams/${teamId}/students/${studentId}`;
-    return subscribeStudentMemberStatus(teamId, studentId, (status) => {
-      setTeam({ teamMemberStatus: status });
-      if (status === 'active') {
-        void deleteOutboxForPath(rosterPath);
-      }
+    void fetchStudentMemberStatus(teamId, studentId).then(() => {
+      setTeam({ teamMemberStatus: 'active' });
     });
   }, [teamId, studentId, setTeam]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!teamId || !studentId) return;
-      void fetchStudentMemberStatus(teamId, studentId).then((status) => {
-        setTeam({ teamMemberStatus: status });
-      });
-    }, [teamId, studentId, setTeam]),
-  );
-
   const refreshWork = useCallback(async () => {
     await syncAll();
-    if (teamId && studentId) {
-      const status = await fetchStudentMemberStatus(teamId, studentId);
-      setTeam({ teamMemberStatus: status });
-    }
-  }, [teamId, studentId, setTeam]);
+  }, []);
 
   const { refreshing, onRefresh } = usePullRefresh(refreshWork);
 
@@ -113,19 +80,13 @@ function StudentHome() {
       <TeamSubtitle team={team} />
       <StemmBannerAd />
       <HomeQuickTools />
-      {!canRun ? <PendingApprovalBanner /> : null}
       <Card bordered style={styles.card}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Activities</Text>
           <Badge label={`${ACTIVITY_CATALOG.length} Experiments`} />
         </View>
         {ACTIVITY_CATALOG.map((a) => (
-          <ActivityRow
-            key={a.path}
-            title={a.title}
-            onPress={() => (canRun ? router.push(a.path) : undefined)}
-            disabled={!canRun}
-          />
+          <ActivityRow key={a.path} title={a.title} onPress={() => router.push(a.path)} />
         ))}
       </Card>
       <Button
@@ -133,7 +94,6 @@ function StudentHome() {
         variant="accent"
         icon="folder-open-outline"
         onPress={() => router.push('/experiments-data')}
-        disabled={!canRun}
       />
     </ScreenShell>
   );
@@ -149,8 +109,6 @@ function TeacherHome() {
   const [teams, setTeams] = useState<TeamSummary[]>([]);
   const [newTeamName, setNewTeamName] = useState('');
   const [busy, setBusy] = useState(false);
-  const seenPendingRef = useRef<Set<string>>(new Set());
-  const rosterInitRef = useRef(false);
 
   const styles = useThemedStyles((t) => ({
     sectionHeader: {
@@ -213,21 +171,6 @@ function TeacherHome() {
       fontSize: t.typography.caption,
       marginBottom: t.spacing.sm,
     },
-    pendingRow: {
-      paddingVertical: t.spacing.sm,
-      paddingHorizontal: t.spacing.sm,
-      borderRadius: t.radii.md,
-      borderWidth: 1,
-      borderColor: t.colors.accent,
-      backgroundColor: `${t.colors.accent}12`,
-      marginBottom: t.spacing.sm,
-    },
-    liveHint: {
-      fontSize: t.typography.caption,
-      color: t.colors.success,
-      fontWeight: '600' as const,
-      marginBottom: t.spacing.sm,
-    },
   }));
 
   useEffect(() => {
@@ -250,11 +193,6 @@ function TeacherHome() {
     return subscribeTeamStudents(activeTeamId, setStudents);
   }, [activeTeamId]);
 
-  useEffect(() => {
-    rosterInitRef.current = false;
-    seenPendingRef.current = new Set();
-  }, [activeTeamId]);
-
   useFocusEffect(
     useCallback(() => {
       void ensureNotificationPermissions();
@@ -266,28 +204,6 @@ function TeacherHome() {
     () => [...students].sort((a, b) => a.firstName.localeCompare(b.firstName)),
     [students],
   );
-
-  const pending = sortedStudents.filter((s) => s.status === 'pending');
-
-  useEffect(() => {
-    if (!activeTeamId) return;
-    const currentIds = new Set(pending.map((s) => s.id));
-    if (!rosterInitRef.current) {
-      rosterInitRef.current = true;
-      seenPendingRef.current = currentIds;
-      return;
-    }
-    const newcomers = pending.filter((s) => !seenPendingRef.current.has(s.id));
-    seenPendingRef.current = currentIds;
-    if (newcomers.length === 0) return;
-
-    const names = newcomers.map((s) => s.firstName).join(', ');
-    Alert.alert(
-      'New join request',
-      `${names} requested to join ${teamName}. Scroll to Join requests to accept.`,
-    );
-    void notifyStudentJoinRequest(names, teamName);
-  }, [pending, activeTeamId, teamName]);
 
   const refreshWork = useCallback(async () => {
     await syncAll();
@@ -327,7 +243,7 @@ function TeacherHome() {
       {activeTeamId ? (
         <Text style={styles.teamId}>
           Watching team: {teamName} · ID {activeTeamId}
-          {'\n'}Students must type team name &quot;{teamName}&quot; (any capitalization).
+          {'\n'}Students choose this team when they sign up.
         </Text>
       ) : null}
 
@@ -358,104 +274,38 @@ function TeacherHome() {
 
       <Card bordered style={styles.card}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Join requests</Text>
-          {pending.length > 0 ? <Badge label={`${pending.length} new`} /> : null}
-        </View>
-        {activeTeamId ? (
-          <Text style={styles.liveHint}>
-            Live — updates when a student signs up with your team name
-          </Text>
-        ) : null}
-        <Text style={styles.sub}>
-          Students appear here as soon as they register. They cannot run experiments until you
-          accept.
-        </Text>
-        {!activeTeamId ? (
-          <Text style={styles.empty}>Select or create a team above.</Text>
-        ) : pending.length === 0 ? (
-          <Text style={styles.empty}>
-            No pending requests. Share team name &quot;{teamName}&quot;.
-          </Text>
-        ) : (
-          pending.map((s) => (
-            <View key={s.id} style={styles.pendingRow}>
-              <Text style={styles.name}>{s.firstName}</Text>
-              <Text style={styles.meta}>{s.email ?? 'No email'} · Waiting</Text>
-              <View style={styles.rowActions}>
-                <Pressable
-                  onPress={() => {
-                    void approveTeamStudent(activeTeamId, s.id).catch((e) =>
-                      Alert.alert('Approve', e instanceof Error ? e.message : 'Failed'),
-                    );
-                  }}
-                >
-                  <Text style={styles.action}>Accept</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    void removeTeamStudent(activeTeamId, s.id).catch((e) =>
-                      Alert.alert('Remove', e instanceof Error ? e.message : 'Failed'),
-                    );
-                  }}
-                >
-                  <Text style={styles.danger}>Decline</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))
-        )}
-      </Card>
-
-      <Card bordered style={styles.card}>
-        <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Team roster</Text>
           <Badge label={`${sortedStudents.length} members`} />
         </View>
         {!activeTeamId ? (
           <Text style={styles.empty}>Select a team to see members.</Text>
         ) : sortedStudents.length === 0 ? (
-          <Text style={styles.empty}>No members yet.</Text>
+          <Text style={styles.empty}>
+            No members yet. Students join instantly when they pick your team.
+          </Text>
         ) : (
           sortedStudents.map((s) => (
             <View key={s.id} style={styles.row}>
-              <Pressable
-                onPress={() =>
-                  s.status !== 'pending' ? router.push(`/(tabs)/student/${s.id}`) : undefined
-                }
-              >
+              <Pressable onPress={() => router.push(`/(tabs)/student/${s.id}`)}>
                 <Text style={styles.name}>{s.firstName}</Text>
-                <Text style={styles.meta}>
-                  {s.email ?? 'No email'} · {s.status === 'pending' ? 'Pending' : 'Active'}
-                </Text>
+                <Text style={styles.meta}>{s.email ?? 'No email'}</Text>
               </Pressable>
-              {s.status === 'pending' ? (
-                <View style={styles.rowActions}>
-                  <Pressable
-                    onPress={() => {
-                      void approveTeamStudent(activeTeamId, s.id);
-                    }}
-                  >
-                    <Text style={styles.action}>Accept</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <View style={styles.rowActions}>
-                  <Pressable
-                    onPress={() => {
-                      Alert.alert('Remove student', `Remove ${s.firstName} from the team?`, [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Remove',
-                          style: 'destructive',
-                          onPress: () => void removeTeamStudent(activeTeamId, s.id),
-                        },
-                      ]);
-                    }}
-                  >
-                    <Text style={styles.danger}>Remove</Text>
-                  </Pressable>
-                </View>
-              )}
+              <View style={styles.rowActions}>
+                <Pressable
+                  onPress={() => {
+                    Alert.alert('Remove student', `Remove ${s.firstName} from the team?`, [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => void removeTeamStudent(activeTeamId, s.id),
+                      },
+                    ]);
+                  }}
+                >
+                  <Text style={styles.danger}>Remove</Text>
+                </Pressable>
+              </View>
             </View>
           ))
         )}
@@ -486,8 +336,8 @@ function TeacherHome() {
       <Card bordered style={styles.card}>
         <Text style={styles.sectionTitle}>Team management</Text>
         <Text style={styles.sub}>
-          Create teams, approve join requests, and review student experiment data. Student sign-up
-          still requires your approval when they use your team name.
+          Create teams and review student experiment data. Students join your team instantly from
+          the sign-up list.
         </Text>
         <Button
           title="Team experiment library"

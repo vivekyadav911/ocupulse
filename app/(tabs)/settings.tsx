@@ -87,8 +87,8 @@ export default function SettingsScreen() {
             <Text style={styles.label}>Teacher mode</Text>
             <Text style={styles.now}>
               Run experiments from the dashboard for personal practice. Use Team management for
-              roster approval and the team experiment library. One email cannot be both teacher and
-              student — use separate accounts or the Student tab for a student profile.
+              roster and the team experiment library. One email cannot be both teacher and student —
+              use separate accounts or the Student tab for a student profile.
             </Text>
           </>
         ) : null}

@@ -14,7 +14,7 @@ export type GradeLevel =
   | 'Year 10'
   | 'High School';
 
-/** Roster approval on a teacher-managed team (`pending` until teacher accepts). */
+/** Legacy roster field — students are always active once on a team. */
 export type TeamMemberStatus = 'pending' | 'active' | 'none';
 
 export type ActivityType =

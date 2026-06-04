@@ -1,6 +1,4 @@
-import type { TeamMemberStatus } from '../store/sessionStore';
-
-/** Students on a teacher-managed team need roster approval before running experiments. */
-export function canStudentRunExperiments(status: TeamMemberStatus): boolean {
-  return status !== 'pending';
+/** Students can run experiments as soon as they join a team. */
+export function canStudentRunExperiments(): boolean {
+  return true;
 }

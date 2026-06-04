@@ -52,8 +52,8 @@ export function TeamIdPreview({ teamName }: TeamIdPreviewProps) {
       <Text style={styles.id}>{teamId ?? 'New ID on save…'}</Text>
       <Text style={styles.hint}>
         {teamId
-          ? 'Matches your teacher’s team — tap Continue to join (pending until they approve).'
-          : 'No teacher team with this name yet. Check spelling with your teacher.'}
+          ? 'Ready to join — tap Continue to start experiments right away.'
+          : 'Choose a team from the list above.'}
       </Text>
     </View>
   );

@@ -91,7 +91,7 @@ export default function ReactionScreen() {
     if (state.phase !== 'statistics' || !teamId) return;
     if (!state.phase1 || !state.phase2 || !state.phase3) return;
 
-    return subscribeTeamExperiments(teamId, 'reaction', (rows) => {
+    const sub = subscribeTeamExperiments(teamId, 'reaction', (rows) => {
       const peerPayloads = rows.map((r) => r.payload);
       const teamStats = computeTeamAggregates(
         peerPayloads,
@@ -102,6 +102,7 @@ export default function ReactionScreen() {
       );
       setState((s) => ({ ...s, teamStats }));
     });
+    return () => sub.unsubscribe();
   }, [state.phase, teamId, studentFirstName, state.phase1, state.phase2, state.phase3]);
 
   const handlePhase1Continue = useCallback((best: TapResult) => {

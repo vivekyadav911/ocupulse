@@ -48,7 +48,7 @@ export function applySessionFromProfile(hydrated: HydratedSession) {
       teamName: hydrated.teamName ?? 'Demo Team',
       managedTeamIds: [],
       activeTeamId: hydrated.teamId ?? null,
-      teamMemberStatus: hydrated.teamMemberStatus ?? 'active',
+      teamMemberStatus: 'active',
     });
     return;
   }

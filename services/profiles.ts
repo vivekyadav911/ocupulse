@@ -72,7 +72,6 @@ async function cacheTeamLocally(team: Team): Promise<Team> {
 async function persistStudentRoster(
   teamId: string,
   student: Student,
-  status: 'pending' | 'active',
   email: string,
 ): Promise<void> {
   const payload = withoutUndefined({
@@ -80,9 +79,9 @@ async function persistStudentRoster(
     uid: student.uid ?? null,
     email: email || null,
     teamId,
-    status,
+    status: 'active',
     updatedAt: Date.now(),
-    ...(status === 'pending' ? { requestedAt: Date.now() } : { approvedAt: Date.now() }),
+    approvedAt: Date.now(),
   });
   const rosterDocId = student.uid ?? student.id;
   await insertOutbox(`teams/${teamId}/students/${rosterDocId}`, payload);
@@ -95,8 +94,19 @@ async function persistStudentRoster(
   if (!verify.exists()) {
     throw new Error('Join request could not be saved. Check your connection and try again.');
   }
-  // Roster is on Firestore — drop outbox so a later sync cannot overwrite teacher approval with pending.
+  // Roster is on Firestore — drop outbox so a later sync cannot overwrite roster status.
   await deleteOutboxForPath(`teams/${teamId}/students/${rosterDocId}`);
+}
+
+/** Legacy pending rows are upgraded to active on read. */
+async function activateStudentRoster(teamId: string, studentId: string): Promise<void> {
+  const db = getFirestoreDb();
+  if (!db) return;
+  const ref = doc(db, 'teams', teamId, 'students', studentId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  if (String(snap.data().status ?? 'active') !== 'pending') return;
+  await setDoc(ref, { status: 'active', approvedAt: Date.now() }, { merge: true });
 }
 
 /** Prefer Firestore (source of truth); local SQLite is cache only. */
@@ -138,6 +148,39 @@ async function findTeamInFirestore(trimmed: string, nameLower: string): Promise<
 
   // Do not write the parent team doc here — Firestore rules allow only the teacher to update teams/{id}.
   return pick;
+}
+
+export async function findTeamById(teamId: string): Promise<Team | null> {
+  if (!teamId) return null;
+
+  const db = getFirestoreDb();
+  if (db) {
+    const snap = await getDoc(doc(db, 'teams', teamId));
+    if (snap.exists()) {
+      const local = await teamsDao.findById(teamId);
+      return cacheTeamLocally(teamFromFirestoreDoc(snap, local?.name ?? 'Team'));
+    }
+  }
+
+  const local = await teamsDao.findById(teamId);
+  return local?.teacherId ? local : null;
+}
+
+/** Teacher-managed teams students can join (sorted by name). */
+export async function fetchAvailableTeams(): Promise<Team[]> {
+  const db = getFirestoreDb();
+  if (!db) {
+    const localTeams = await teamsDao.findAll();
+    return localTeams.filter((t) => t.teacherId).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const snap = await getDocs(collection(db, 'teams'));
+  const teams: Team[] = [];
+  for (const d of snap.docs) {
+    const team = teamFromFirestoreDoc(d, String(d.data().name ?? 'Team'));
+    if (team.teacherId) teams.push(await cacheTeamLocally(team));
+  }
+  return teams.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function findTeamByName(name: string): Promise<Team | null> {
@@ -233,16 +276,19 @@ export async function createTeacherTeam(input: {
 
 export async function setupStudentProfile(input: {
   firstName: string;
-  teamName: string;
+  teamId?: string;
+  teamName?: string;
 }): Promise<{ team: Team; student: Student }> {
   const user = getCurrentUser();
   if (!user) throw new Error('Not signed in');
 
-  const trimmedTeam = input.teamName.trim();
-  const team = await findTeamByName(trimmedTeam);
+  const team =
+    (input.teamId ? await findTeamById(input.teamId) : null) ??
+    (input.teamName?.trim() ? await findTeamByName(input.teamName.trim()) : null);
   if (!team?.teacherId) {
+    const label = input.teamName?.trim() || 'that team';
     throw new Error(
-      `No teacher team matched "${trimmedTeam}". Ask your teacher for the exact team name on their dashboard.`,
+      `No teacher team matched "${label}". Choose a team from the list or ask your teacher to create one.`,
     );
   }
   const student: Student = {
@@ -258,8 +304,7 @@ export async function setupStudentProfile(input: {
   if (existingLocal) await studentsDao.update({ ...existingLocal, ...student, teamId: team.id });
   else await studentsDao.insert(student);
 
-  const joinStatus: 'pending' | 'active' = team.teacherId ? 'pending' : 'active';
-  await persistStudentRoster(team.id, student, joinStatus, user.email ?? '');
+  await persistStudentRoster(team.id, student, user.email ?? '');
 
   await updateUserProfile(user.uid, {
     role: 'student',
@@ -280,8 +325,8 @@ export async function fetchStudentMemberStatus(
   if (!db) return 'active';
   const snap = await getDoc(doc(db, 'teams', teamId, 'students', studentId));
   if (!snap.exists()) return 'none';
-  const status = String(snap.data().status ?? 'active');
-  return status === 'pending' ? 'pending' : 'active';
+  await activateStudentRoster(teamId, studentId);
+  return 'active';
 }
 
 export function subscribeStudentMemberStatus(
@@ -302,7 +347,10 @@ export function subscribeStudentMemberStatus(
         return;
       }
       const status = String(snap.data().status ?? 'active');
-      onStatus(status === 'pending' ? 'pending' : 'active');
+      if (status === 'pending') {
+        void activateStudentRoster(teamId, studentId);
+      }
+      onStatus('active');
     },
     () => onStatus('active'),
   );
@@ -404,7 +452,7 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
   await pullTeamRoster(teamId);
   const team = await teamsDao.findById(teamId);
   const student = await studentsDao.findById(studentId);
-  const teamMemberStatus = await fetchStudentMemberStatus(teamId, studentId);
+  await fetchStudentMemberStatus(teamId, studentId);
 
   return {
     profileReady,
@@ -414,6 +462,6 @@ export async function hydrateProfileFromCloud(uid: string): Promise<{
     teamName: team?.name,
     studentFirstName: student?.firstName ?? profile.displayName,
     displayName: student?.firstName ?? profile.displayName,
-    teamMemberStatus,
+    teamMemberStatus: 'active',
   };
 }

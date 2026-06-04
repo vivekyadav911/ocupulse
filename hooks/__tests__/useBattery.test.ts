@@ -3,10 +3,18 @@ import * as Battery from 'expo-battery';
 import { readBatterySnapshot, useBattery } from '../useBattery';
 
 jest.mock('expo-battery', () => ({
+  BatteryState: {
+    UNKNOWN: 0,
+    UNPLUGGED: 1,
+    CHARGING: 2,
+    FULL: 3,
+  },
   isAvailableAsync: jest.fn(),
   getBatteryLevelAsync: jest.fn(),
+  getBatteryStateAsync: jest.fn(),
   isLowPowerModeEnabledAsync: jest.fn(),
   addBatteryLevelListener: jest.fn(),
+  addBatteryStateListener: jest.fn(),
 }));
 
 describe('useBattery', () => {
@@ -14,8 +22,10 @@ describe('useBattery', () => {
     jest.clearAllMocks();
     (Battery.isAvailableAsync as jest.Mock).mockResolvedValue(false);
     (Battery.getBatteryLevelAsync as jest.Mock).mockResolvedValue(-1);
+    (Battery.getBatteryStateAsync as jest.Mock).mockResolvedValue(Battery.BatteryState.UNKNOWN);
     (Battery.isLowPowerModeEnabledAsync as jest.Mock).mockResolvedValue(false);
     (Battery.addBatteryLevelListener as jest.Mock).mockReturnValue({ remove: jest.fn() });
+    (Battery.addBatteryStateListener as jest.Mock).mockReturnValue({ remove: jest.fn() });
   });
 
   it('does not block recording when battery level is unknown', async () => {
