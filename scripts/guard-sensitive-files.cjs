@@ -75,7 +75,12 @@ function main() {
     mode === 'tracked'
       ? gitLines(['ls-files'])
       : mode === 'push'
-        ? gitLines(['diff', '--name-only', '--diff-filter=ACMRT', process.argv[3] ?? 'HEAD'])
+        ? gitLines([
+            'diff',
+            '--name-only',
+            '--diff-filter=ACMRT',
+            `${process.argv[3] ?? 'HEAD'}..${process.argv[4] ?? 'HEAD'}`,
+          ])
         : gitLines(['diff', '--cached', '--name-only', '--diff-filter=ACMRT']);
 
   const hits = violationsFor(files);

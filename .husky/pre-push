@@ -1,1 +1,7 @@
-node scripts/guard-sensitive-files.cjs push "$1"
+#!/usr/bin/env sh
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+  node scripts/guard-sensitive-files.cjs push "$remote_sha" "$local_sha" || exit 1
+done
